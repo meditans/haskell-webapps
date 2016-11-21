@@ -1,5 +1,5 @@
 .PHONY: all clean
-INSTALL_ROOT:=$(shell stack path --local-install-root)
+INSTALL_ROOT:=$(shell stack path --stack-yaml=stack-ghcjs.yaml --local-install-root)
 
 all: js-build/install-root js-build/todo.min.js
 
