@@ -1,0 +1,8 @@
+resolver: lts-7.5
+packages:
+- '.'
+extra-deps:
+- react-flux-1.2.3
+flags: {}
+extra-package-dbs: []
+
