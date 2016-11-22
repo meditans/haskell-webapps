@@ -10,3 +10,6 @@ sha1: a41ae415328e2b257d40724d13d1386390c26322
 
 extra-deps:
 - react-flux-1.2.3
+- jsaddle-dom-0.6.0.0
+- jsaddle-0.6.0.1
+- ref-tf-0.4.0.1

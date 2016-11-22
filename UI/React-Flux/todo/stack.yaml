@@ -1,3 +1,9 @@
-resolver: lts-7.9
+resolver: lts-7.2
 packages:
 - .
+
+extra-deps:
+- react-flux-1.2.3
+- jsaddle-dom-0.6.0.0
+- jsaddle-0.6.0.1
+- ref-tf-0.4.0.1

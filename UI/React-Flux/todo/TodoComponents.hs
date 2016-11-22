@@ -7,7 +7,7 @@ module TodoComponents where
 
 import Data.Typeable (Typeable)
 import React.Flux
-import Data.JSString (JSString)
+import React.Flux.Internal (JSString)
 import qualified Data.Text as T
 
 -- | The properties for the text input component.  Note how we can pass anything, including
@@ -31,7 +31,6 @@ todoTextInput = defineStatefulView "todo text input" "" $ \curText args ->
         [ "className" &= tiaClass args
         , "placeholder" &= tiaPlaceholder args
         , "value" &= curText -- using value here creates a controlled component: https://facebook.github.io/react/docs/forms.html
-        , "autoFocus" &= True
 
         -- Update the current state with the current text in the textbox, sending no actions
         , onChange $ \evt _ -> ([], Just $ target evt "value")
