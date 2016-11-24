@@ -33,6 +33,7 @@ frontendForm u =
           { tiaId = Just "mailField"
           , tiaClass = "form-control"
           , tiaPlaceholder = "Email"
+          , tiaType = "email"
           , tiaOnSave = dispatchLogin . UpdateUser
           , tiaValue = Nothing
           }
@@ -41,6 +42,7 @@ frontendForm u =
           { tiaId = Just "passwordField"
           , tiaClass = "form-control"
           , tiaPlaceholder = "Password"
+          , tiaType = "password"
           , tiaOnSave = dispatchLogin . UpdatePassword
           , tiaValue = Nothing
           }

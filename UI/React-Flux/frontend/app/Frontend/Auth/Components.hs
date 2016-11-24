@@ -13,6 +13,7 @@ data TextInputArgs = TextInputArgs {
       tiaId          :: Maybe JSString
     , tiaClass       :: JSString
     , tiaPlaceholder :: JSString
+    , tiaType        :: JSString
     , tiaOnSave      :: T.Text -> [SomeStoreAction]
     , tiaValue       :: Maybe T.Text
     } deriving (Typeable)
@@ -25,8 +26,9 @@ textInput = defineStatefulView "todo text input" "" $ \curText args ->
     input_ $
         maybe [] (\i -> ["id" &= i]) (tiaId args)
         ++
-        [ "className" &= tiaClass args
+        [ "className"   &= tiaClass args
         , "placeholder" &= tiaPlaceholder args
+        , "type"  &= tiaType args
         , "value" &= curText -- using value here creates a controlled component: https://facebook.github.io/react/docs/forms.html
 
         -- Update the current state with the current text in the textbox, sending no actions
