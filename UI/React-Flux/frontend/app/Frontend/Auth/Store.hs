@@ -25,7 +25,7 @@ data UserStore = UserStore
 data UserStoreAction = UpdateUser Text
                      | UpdatePassword Text
                      | Auth
-                     | AuthResponse User (Either (Int,String) Text)
+                     | AuthResponse (Either (Int,String) Text)
                      deriving (Show, Generic, NFData)
 
 cfg :: ApiRequestConfig Api
@@ -43,15 +43,15 @@ instance StoreData UserStore where
   transform Auth us = do
     putStrLn $ "I received " <> tshow (user us)
     request cfg (Proxy :: Proxy Auth) (user us) $
-      \r -> return . dispatchLogin $ AuthResponse (user us) r
+      \r -> return . dispatchLogin $ AuthResponse r
     return $ us { reqStatus = PendingRequest
                 , message = tshow (user us) }
 
-  transform (AuthResponse _ (Left (_errCode, err))) us =
+  transform (AuthResponse (Left (_errCode, err))) us =
     return $ us { reqStatus = PreviousRequestHadError err
                 , message = pack err}
 
-  transform (AuthResponse _ (Right t)) us =
+  transform (AuthResponse (Right t)) us =
     return $ us { reqStatus = NoPendingRequest
                 , message = t }
 
