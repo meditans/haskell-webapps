@@ -29,7 +29,7 @@ data UserStoreAction = UpdateUser Text
                      deriving (Show, Generic, NFData)
 
 cfg :: ApiRequestConfig Api
-cfg = ApiRequestConfig "localhost:8081" NoTimeout
+cfg = ApiRequestConfig "http://localhost:8081" NoTimeout
 
 instance StoreData UserStore where
   type StoreAction UserStore = UserStoreAction
