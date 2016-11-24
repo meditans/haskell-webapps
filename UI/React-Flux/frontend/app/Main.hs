@@ -1,34 +1,67 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -fdefer-typed-holes #-}
+
 module Main where
 
+import Frontend.Auth.Store
+
 import React.Flux
-import Common.UserLogin
-import Data.Monoid
+import React.Flux.Ajax
+
+import Frontend.Auth.Components
 
 main :: IO ()
-main = reactRender "frontend" frontendApp ()
+main = do
+  initAjax
+  reactRender "frontend" frontendApp ()
 
 frontendApp :: ReactView ()
-frontendApp = defineControllerView "frontend" store $ \_ _ -> do
-  div_ frontendForm_
+frontendApp = defineControllerView "frontend" userStore $ \u _ -> frontendForm' u
 
-frontendForm_ :: ReactElementM eventHandler ()
-frontendForm_ = view frontendForm () mempty
+frontendForm :: UserStore -> ReactElementM ViewEventHandler ()
+frontendForm u =
+  div_ ["className"$="login-clean"] $ do
+    form_ $ do
+      h2_ ["className"$="sr-only"] $ "Login Form"
+      div_ ["className"$="illustration"] $
+        i_ ["className"$="icon ion-ios-navigate"] mempty
+      div_ ["className"$="form-group"] $
+        input_ ["className"$="form-control", "type"$="email", "name"$="email", "placeholder"$="Email"]
+      div_ ["className"$="form-group"] $
+        input_ ["className"$="form-control", "type"$="password", "name"$="password", "placeholder"$="Password"]
+      div_ ["className"$="form-group"] $
+        a_ ["className"$="btn btn-primary btn-block", "role"$="button"] "Log in"
+      a_ ["href"$="#", "className"$="forgot"] $ elemText "Forgot your email or password?"
+      h2_ (elemText $ message u)
 
-frontendForm :: ReactView ()
-frontendForm = defineView "header" $ \() ->
-  ul_ $ do li_ (b_ "Hello")
-           li_ "World"
-           li_ $
-             ul_ (li_ "Nested" <> li_ "List")
-
-store :: ReactStore User
-store = mkStore $ User "meditans@gmail.com" "password"
-
-instance StoreData User where
-  type StoreAction User = ()
-  transform () u = return u
-
-
+frontendForm' :: UserStore -> ReactElementM ViewEventHandler ()
+frontendForm' u =
+  div_ ["className"$="login-clean"] $ do
+    form_ $ do
+      h2_ ["className"$="sr-only"] $ "Login Form"
+      div_ ["className"$="illustration"] $
+        i_ ["className"$="icon ion-ios-navigate"] mempty
+      div_ ["className"$="form-group"] $
+        textInput_ $ TextInputArgs
+          { tiaId = Just "mailField"
+          , tiaClass = "form-control"
+          , tiaPlaceholder = "Email"
+          , tiaOnSave = dispatchLogin . UpdateUser
+          , tiaValue = Nothing
+          }
+      div_ ["className"$="form-group"] $
+        textInput_ $ TextInputArgs
+          { tiaId = Just "passwordField"
+          , tiaClass = "form-control"
+          , tiaPlaceholder = "Password"
+          , tiaOnSave = dispatchLogin . UpdatePassword
+          , tiaValue = Nothing
+          }
+      div_ ["className"$="form-group"] $
+        a_ ["className"$="btn btn-primary btn-block", "role"$="button"
+           , onClick (\_ _ -> dispatchLogin Auth)] "Log in"
+      a_ ["href"$="#", "className"$="forgot"] $ elemText "Forgot your email or password?"
+      h2_ (elemText $ message u)

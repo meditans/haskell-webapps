@@ -1,24 +1,18 @@
-{-# LANGUAGE DataKinds, DeriveGeneric, TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DataKinds, DeriveAnyClass, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE TypeOperators                                               #-}
 
 module Common.UserLogin where
 
+import Control.DeepSeq
 import Data.Aeson
 import Data.Text
-import GHC.Generics
-import Servant.API
-import React.Flux
-import Control.DeepSeq
 import Data.Typeable
+import GHC.Generics
 
 data User = User
   { userMail     :: Text
   , userPassword :: Text
-  } deriving (Show, Generic, Typeable)
+  } deriving (Show, Generic, Typeable, NFData)
 
 instance ToJSON User
 instance FromJSON User
-
-type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] Text
-          :<|> "assets" :> Raw
-          :<|> Raw
