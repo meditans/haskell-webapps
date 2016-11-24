@@ -19,26 +19,10 @@ main = do
   reactRender "frontend" frontendApp ()
 
 frontendApp :: ReactView ()
-frontendApp = defineControllerView "frontend" userStore $ \u _ -> frontendForm' u
+frontendApp = defineControllerView "frontend" userStore $ \u _ -> frontendForm u
 
 frontendForm :: UserStore -> ReactElementM ViewEventHandler ()
 frontendForm u =
-  div_ ["className"$="login-clean"] $ do
-    form_ $ do
-      h2_ ["className"$="sr-only"] $ "Login Form"
-      div_ ["className"$="illustration"] $
-        i_ ["className"$="icon ion-ios-navigate"] mempty
-      div_ ["className"$="form-group"] $
-        input_ ["className"$="form-control", "type"$="email", "name"$="email", "placeholder"$="Email"]
-      div_ ["className"$="form-group"] $
-        input_ ["className"$="form-control", "type"$="password", "name"$="password", "placeholder"$="Password"]
-      div_ ["className"$="form-group"] $
-        a_ ["className"$="btn btn-primary btn-block", "role"$="button"] "Log in"
-      a_ ["href"$="#", "className"$="forgot"] $ elemText "Forgot your email or password?"
-      h2_ (elemText $ message u)
-
-frontendForm' :: UserStore -> ReactElementM ViewEventHandler ()
-frontendForm' u =
   div_ ["className"$="login-clean"] $ do
     form_ $ do
       h2_ ["className"$="sr-only"] $ "Login Form"

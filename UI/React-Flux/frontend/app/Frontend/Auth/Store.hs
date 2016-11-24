@@ -44,12 +44,11 @@ instance StoreData UserStore where
     putStrLn $ "I received " <> tshow (user us)
     request cfg (Proxy :: Proxy Auth) (user us) $
       \r -> return . dispatchLogin $ AuthResponse r
-    return $ us { reqStatus = PendingRequest
-                , message = tshow (user us) }
+    return $ us { reqStatus = PendingRequest }
 
   transform (AuthResponse (Left (_errCode, err))) us =
     return $ us { reqStatus = PreviousRequestHadError err
-                , message = pack err}
+                , message = pack err }
 
   transform (AuthResponse (Right t)) us =
     return $ us { reqStatus = NoPendingRequest
