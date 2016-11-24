@@ -14,4 +14,6 @@ executable backend
                      , text
                      , warp
                      , wai-extra
+                     , classy-prelude
+                     , lens
   default-language:    Haskell2010

@@ -10,8 +10,8 @@ import Data.Typeable
 import GHC.Generics
 
 data UserLogin = UserLogin
-  { userMail     :: Text
-  , userPassword :: Text
+  { userLoginMail     :: Text
+  , userLoginPassword :: Text
   } deriving (Show, Generic, Typeable, NFData)
 
 instance ToJSON UserLogin
