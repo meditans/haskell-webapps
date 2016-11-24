@@ -9,10 +9,10 @@ import Data.Text
 import Data.Typeable
 import GHC.Generics
 
-data User = User
+data UserLogin = UserLogin
   { userMail     :: Text
   , userPassword :: Text
   } deriving (Show, Generic, Typeable, NFData)
 
-instance ToJSON User
-instance FromJSON User
+instance ToJSON UserLogin
+instance FromJSON UserLogin
