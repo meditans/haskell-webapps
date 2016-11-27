@@ -16,6 +16,8 @@ executable frontend
                      , jsaddle >= 0.6
                      , common
                      , classy-prelude
+                     , aeson
+                     , web-routes
   default-language:  Haskell2010
 
 

@@ -17,7 +17,7 @@ import Data.Proxy
 data RequestStatus = NoPendingRequest | PendingRequest | PreviousRequestHadError String
 
 data UserStore = UserStore
-  { user      :: User
+  { user      :: UserLogin
   , reqStatus :: RequestStatus
   , message   :: Text
   }
@@ -35,14 +35,14 @@ instance StoreData UserStore where
   type StoreAction UserStore = UserStoreAction
 
   transform (UpdateUser t) us = return us {user = upd (user us)}
-    where upd (User _ p) = User t p
+    where upd (UserLogin _ p) = UserLogin t p
 
   transform (UpdatePassword t) us = return us {user = upd (user us)}
-    where upd (User u _) = User u t
+    where upd (UserLogin u _) = UserLogin u t
 
   transform Auth us = do
     putStrLn $ "I received " <> tshow (user us)
-    request cfg (Proxy :: Proxy Auth) (user us) $
+    request cfg (Proxy :: Proxy AuthEndpoint) (user us) $
       \r -> return . dispatchLogin $ AuthResponse r
     return $ us { reqStatus = PendingRequest }
 
@@ -55,7 +55,7 @@ instance StoreData UserStore where
                 , message = t }
 
 userStore :: ReactStore UserStore
-userStore = mkStore $ UserStore (User "" "") NoPendingRequest ""
+userStore = mkStore $ UserStore (UserLogin "" "") NoPendingRequest ""
 
 dispatchLogin :: UserStoreAction -> [SomeStoreAction]
 dispatchLogin a = [SomeStoreAction userStore a]

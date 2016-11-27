@@ -1,8 +1,7 @@
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies #-}
 
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -fdefer-typed-holes #-}
+-- {-# OPTIONS_GHC -fdefer-typed-holes #-}
 
 module Main where
 
@@ -19,7 +18,7 @@ main = do
   reactRender "frontend" frontendApp ()
 
 frontendApp :: ReactView ()
-frontendApp = defineControllerView "frontend" userStore $ \u _ -> frontendForm u
+frontendApp = defineControllerView "frontend" userStore (\u _ -> frontendForm u)
 
 frontendForm :: UserStore -> ReactElementM ViewEventHandler ()
 frontendForm u =
