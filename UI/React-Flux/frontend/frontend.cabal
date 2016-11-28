@@ -9,6 +9,8 @@ executable frontend
   other-modules:       Frontend.Auth.Store
                      , Frontend.Auth.Components
                      , Frontend.Auth.App
+                     , Frontend.Roles.App
+                     , Frontend.Roles.Store
                      , Router
                      , TabbedApps
                      , Types

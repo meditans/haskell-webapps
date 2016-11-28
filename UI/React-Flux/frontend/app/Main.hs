@@ -20,7 +20,7 @@ import Types
 main :: IO ()
 main = do
   initAjax
-  let apps = [authApp, rolesApp]
+  let apps = [authApp, authApp, rolesApp]
   appViews <- mapM initApp apps
   let tabs = appsToTabs "main tabs" apps appViews
   tabView <- initApp tabs
