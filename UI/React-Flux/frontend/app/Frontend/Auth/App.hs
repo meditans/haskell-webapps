@@ -6,12 +6,21 @@ import Frontend.Auth.Store
 import Frontend.Auth.Components
 
 import React.Flux
+import Types
+import qualified TabbedApps
 
-frontendApp :: ReactView ()
-frontendApp = defineControllerView "frontend" userStore (\u _ -> frontendForm u)
+authApp :: App TabbedApps.ParentRouter
+authApp = App "authApp"
+              userStore
+              (\_ _ -> view authView () mempty)
+              (UpdateUser "")
+              Nothing
 
-frontendForm :: UserStore -> ReactElementM ViewEventHandler ()
-frontendForm u =
+authView :: ReactView ()
+authView = defineControllerView "frontend" userStore (\u _ -> authView' u)
+
+authView' :: UserStore -> ReactElementM ViewEventHandler ()
+authView' u =
   div_ ["className"$="login-clean"] $ do
     form_ $ do
       h2_ ["className"$="sr-only"] $ "Login Form"

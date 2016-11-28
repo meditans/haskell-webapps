@@ -6,8 +6,8 @@
 
 module Main where
 
-import Frontend.Auth.Store
 import Frontend.Auth.App
+import Frontend.Roles.App
 
 import React.Flux
 import React.Flux.Ajax
@@ -17,15 +17,10 @@ import qualified TabbedApps
 import Router
 import Types
 
--- main :: IO ()
--- main = do
---   initAjax
---   reactRender "frontend" frontendApp ()
-
 main :: IO ()
 main = do
   initAjax
-  let apps = [authApp, authApp]
+  let apps = [authApp, rolesApp]
   appViews <- mapM initApp apps
   let tabs = appsToTabs "main tabs" apps appViews
   tabView <- initApp tabs
@@ -42,13 +37,6 @@ main = do
            TabbedApps.Tab (appName a) (\pr -> view v pr mempty) (appRouter a))
         apps
         appViews
-
-authApp :: App TabbedApps.ParentRouter
-authApp = App "authApp"
-              userStore
-              (\_ _ -> view frontendApp () mempty)
-              (UpdateUser "")
-              Nothing
 
 tabApp :: Text -> [TabbedApps.Tab] -> App TabbedApps.ParentRouter
 tabApp name tabs =
