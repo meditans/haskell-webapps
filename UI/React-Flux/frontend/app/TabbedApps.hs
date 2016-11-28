@@ -1,14 +1,8 @@
-{-# LANGUAGE DeriveAnyClass     #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric      #-}
-{-# LANGUAGE FlexibleContexts   #-}
-{-# LANGUAGE OverloadedStrings  #-}
-{-# LANGUAGE RankNTypes         #-}
-{-# LANGUAGE RecordWildCards    #-}
-{-# LANGUAGE TupleSections      #-}
-{-# LANGUAGE TypeFamilies       #-}
+{-# LANGUAGE DeriveAnyClass, DeriveDataTypeable, DeriveGeneric #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, RankNTypes   #-}
+{-# LANGUAGE RecordWildCards, TupleSections, TypeFamilies      #-}
 
-module TabbedApps (TabbedAction(..)
+module TabbedApps ( TabbedAction(..)
                   , TabbedState(..)
                   , Tab(..)
                   , ParentRouter
@@ -17,11 +11,13 @@ module TabbedApps (TabbedAction(..)
                   , view
                   , view_) where
 
-import           React.Flux          hiding (view)
-import qualified React.Flux          as RF
+import           React.Flux hiding (view)
+import qualified React.Flux as RF
 
--- import           Router
-import           Types
+import React.Flux.Internal (toJSString)
+
+import Router
+import Types
 
 import           Control.Applicative ((<|>))
 import           Control.DeepSeq
@@ -60,7 +56,7 @@ instance WR.PathInfo TabbedAction where
       intParser v =
         case TR.decimal v of
         Right (aidx, "") -> Just aidx
-        _ -> Nothing
+        _                -> Nothing
       subRouteParser apath =
         Right $ if null apath then Nothing else Just apath
 
