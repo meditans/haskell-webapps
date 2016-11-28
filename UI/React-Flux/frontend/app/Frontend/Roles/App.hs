@@ -18,14 +18,14 @@ rolesApp = App "rolesApp"
 rolesView :: ReactView ()
 rolesView = defineControllerView "roles" rolesStore (\u _ -> rolesView' u)
 
--- rolesView' :: RolesStore -> ReactElementM ViewEventHandler ()
--- rolesView' _ =
---   div_ ["className"$="login-clean"] $ do
---     h2_ (elemText $ "hey")
-
 rolesView' :: RolesStore -> ReactElementM ViewEventHandler ()
 rolesView' _ = do
   topBar
+  div_ $
+    div_ ["className"$="container"] $
+      div_ ["className"$="row"] $ do
+        lateralBar
+        rolesPresentation
 
 topBar :: ReactElementM ViewEventHandler ()
 topBar =
@@ -57,91 +57,48 @@ topBar =
                                    , "name"$="search"
                                    , "id"$="search-field"]
 
--- rolesView' :: RolesStore -> ReactElementM ViewEventHandler ()
--- rolesView' _ = div_ $
---   div_ ["class_"$="container"] $ do
---     div_ ["class_"$="navbar-header"] $ do
---       a_ ["class_"$="navbar-brand navbar-link", "href"$="#"] $ "Tenant name comes here"
---       button_ "class_"$="navbar-toggle collapsed" "dataAttribute"$="toggle" "collapse" dataAttribute "target" "#navcol-1" $ do
---         span_ ["class_"$="sr-only"] $ "Toggle navigation"
---         span_ ["class_"$="icon-bar"] $ mempty
---         span_ ["class_"$="icon-bar"] $ mempty
---         span_ ["class_"$="icon-bar"] $ mempty
---         --     div_ class_ "collapse navbar-collapse" A.id "navcol-1" $ do
---         --         ul class_ "nav navbar-nav" $ do
---         --             li class_ "active" $ a href "#" $ "Link 1"
---         --             li $ a href "#" $ "Link 2"
---         --             li $ a href "#" $ "Link 3"
---         --         form class_ "navbar-form navbar-left" target "_self" $ div_ class_ "form-group" $ do
---         --             H.label class_ "control-label" for "search-field" $ i class_ "glyphicon glyphicon-search" $ mempty
---         --             input class_ "form-control search-field" type_ "search" name "search" A.id "search-field"
---         -- div_ mempty
---         -- div_ $ div_ class_ "container" $ div_ class_ "row" $ do
---         --     div_ class_ "col-md-3 secton-menu" $ ul class_ "nav nav-pills nav-stacked" $ do
---         --         li class_ "active" $ a href "#" $ "Account Settings"
---         --         li $ a href "#" $ "Products"
---         --         li $ a href "#" $ "Orders"
---         --     div_ class_ "col-md-9" $ do
---         --         ol class_ "breadcrumb" $ do
---         --             li $ a $ span_ "Account settings"
---         --             li $ a $ span_ "Roles"
---         --         button class_ "btn btn-primary pull-right" type_ "button" $ "New role"
---         --         h1 class_ "page-heading" $ "Roles"
---         --         div_ class_ "table-responsive" $ table class_ "table" $ do
---         --             thead $ tr $ do
---         --                 th "Role name"
---         --                 th "Permissions"
---         --                 th "Users"
---         --             tbody $ do
---         --                 tr $ do
---         --                     td $ do
---         --                         "Account administrator"
---         --                         a href "role-edit.html" $ "(edit)"
---         --                     td $ em "All permissions"
---         --                     td $ ul $ do
---         --                         li "admin@mydomain.com"
---         --                         li $ do
---         --                             "otheradmin@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ do
---         --                             "yetanotheradmin@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                 tr $ do
---         --                     td $ do
---         --                         "Product administrator"
---         --                         a href "role-edit.html" $ "(edit)"
---         --                     td $ ul $ do
---         --                         li "View product"
---         --                         li "Edit product textual content"
---         --                         li "Edit product properties"
---         --                         li "Edit product price"
---         --                         li $ a href "#" $ "+ 8 more"
---         --                     td $ ul $ do
---         --                         li $ do
---         --                             "user1@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ do
---         --                             "user2@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ do
---         --                             "user3@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                 tr $ do
---         --                     td $ do
---         --                         "Product editor"
---         --                         a href "role-edit.html" $ "(edit)"
---         --                     td $ ul $ do
---         --                         li "View product"
---         --                         li "Edit product textual content"
---         --                         li "Edit product images"
---         --                     td $ ul $ do
---         --                         li $ do
---         --                             "user4@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ do
---         --                             "user3@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ do
---         --                             "user7@mydomain.com"
---         --                             a href "#" $ "(revoke)"
---         --                         li $ a href "#" $ "+ 5 more"
+
+lateralBar :: ReactElementM ViewEventHandler ()
+lateralBar =
+  div_ ["className"$="col-md-3 secton-menu"] $
+    ul_ ["className"$="nav nav-pills nav-stacked"] $ do
+      li_ ["className"$="active"] $ a_ ["href"$="#"] "Account Settings"
+      li_ [] $ a_ ["href"$="#"] "Products"
+      li_ [] $ a_ ["href"$="#"] "Orders"
+
+rolesPresentation :: ReactElementM ViewEventHandler ()
+rolesPresentation =
+  div_ ["className"$="col-md-9"] $ do
+    ol_ ["className"$="breadcrumb"] $ do
+        li_ $ a_ $ span_ "Account settings"
+        li_ $ a_ $ span_ "Roles"
+    button_ ["className"$="btn btn-primary pull-right", "type"$="button"] "New role"
+    h1_ ["className"$="page-heading"] "Roles"
+    div_ ["className"$="table-responsive"] $
+        table_ ["className"$="table"] $ do
+            thead_ $
+                tr_ $ do
+                    th_ "Role name"
+                    th_ "Permissions"
+                    th_ "Users"
+            tbody_ $ do
+              role
+              role
+              role
+
+
+role :: ReactElementM ViewEventHandler ()
+role =
+  tr_ $ do
+    td_ $ do
+        "Account administrator"
+        a_ ["href"$="role-edit.html"] "(edit)"
+    td_ $ em_ $ "All permissions"
+    td_ $ ul_ $ do
+        li_ "admin@mydomain.com"
+        li_ $ do
+            "otheradmin@mydomain.com"
+            a_ ["href"$="#"] "(revoke)"
+        li_ $ do
+            "yetanotheradmin@mydomain.com"
+            a_ ["href"$="#"] "(revoke)"
