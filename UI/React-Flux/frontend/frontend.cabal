@@ -25,6 +25,7 @@ executable frontend
                      , aeson
                      , web-routes
                      , bytestring
+                     , lens
   default-language:  Haskell2010
 
 

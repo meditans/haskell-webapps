@@ -8,6 +8,7 @@ module Main where
 
 import Frontend.Auth.App
 import Frontend.Roles.App
+import Frontend.EditRole.App
 
 import React.Flux
 import React.Flux.Ajax
@@ -20,7 +21,7 @@ import Types
 main :: IO ()
 main = do
   initAjax
-  let apps = [authApp, authApp, rolesApp]
+  let apps = [authApp, rolesApp, editRoleApp]
   appViews <- mapM initApp apps
   let tabs = appsToTabs "main tabs" apps appViews
   tabView <- initApp tabs

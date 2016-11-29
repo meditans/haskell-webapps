@@ -36,9 +36,10 @@ textInput = defineStatefulView "todo text input" "" $ \curText args ->
 
         -- Produce the save action and reset the current state to the empty string
         , onBlur $ \_ _ curState ->
-            if not (T.null curState)
-                then (tiaOnSave args curState, Nothing)
-                else ([], Nothing)
+            -- if not (T.null curState)
+            --     then (tiaOnSave args curState, Nothing)
+            --     else ([], Nothing)
+            (tiaOnSave args curState, Nothing)
 
         , onKeyDown $ \_ evt curState ->
              if keyCode evt == 13 && not (T.null curState) -- 13 is enter

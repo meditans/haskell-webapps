@@ -29,7 +29,7 @@ server config
     :<|> enter (runReaderTNat config) showRoles
     :<|> serveAssets
   where
-    serveAssets = serveDirectory "../mockClient/"
+    serveAssets = serveDirectory "../frontend/"
 
 authenticate :: (MonadIO m) => UserLogin -> m Text
 authenticate u

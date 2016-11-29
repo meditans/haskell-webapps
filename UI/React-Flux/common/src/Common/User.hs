@@ -1,9 +1,10 @@
 {-# LANGUAGE DataKinds, DeriveGeneric, FlexibleContexts, FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses, OverloadedStrings, StandaloneDeriving  #-}
-{-# LANGUAGE UndecidableInstances                                          #-}
+{-# LANGUAGE UndecidableInstances, DeriveAnyClass                          #-}
 
 module Common.User where
 
+import Control.DeepSeq
 import Common.Prelude
 import Common.Shaped
 import Servant.API
@@ -17,7 +18,7 @@ import Data.String.Conversions
 type Email = Text
 
 data User = User { userMail :: Email
-  } deriving (Show, Eq, Ord, Generic)
+  } deriving (Show, Eq, Ord, Generic, NFData)
 
 -- @ Instances
 

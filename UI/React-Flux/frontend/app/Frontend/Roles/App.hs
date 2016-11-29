@@ -1,31 +1,44 @@
-{-# LANGUAGE OverloadedStrings, TypeFamilies #-}
+{-# LANGUAGE OverloadedStrings, TypeFamilies, NoImplicitPrelude #-}
 
 module Frontend.Roles.App where
 
 import Frontend.Roles.Store
 
+import ClassyPrelude
 import React.Flux
 import Types
 import qualified TabbedApps
+
+import Common.Roles
+import Common.RoleAttributes
+import Common.User
+import Common.Permission
 
 rolesApp :: App TabbedApps.ParentRouter
 rolesApp = App "rolesApp"
               rolesStore
               (\_ _ -> view rolesView () mempty)
-              RolesStoreAction
+              InitRolesRequest
               Nothing
 
 rolesView :: ReactView ()
 rolesView = defineControllerView "roles" rolesStore (\u _ -> rolesView' u)
 
 rolesView' :: RolesStore -> ReactElementM ViewEventHandler ()
-rolesView' _ = do
+rolesView' store = addBars $ rolesPresentation (roles store)
+
+--------------------------------------------------------------------------------
+-- Common components
+--------------------------------------------------------------------------------
+
+addBars :: ReactElementM ViewEventHandler () -> ReactElementM ViewEventHandler ()
+addBars content = do
   topBar
   div_ $
     div_ ["className"$="container"] $
       div_ ["className"$="row"] $ do
         lateralBar
-        rolesPresentation
+        content
 
 topBar :: ReactElementM ViewEventHandler ()
 topBar =
@@ -66,8 +79,12 @@ lateralBar =
       li_ [] $ a_ ["href"$="#"] "Products"
       li_ [] $ a_ ["href"$="#"] "Orders"
 
-rolesPresentation :: ReactElementM ViewEventHandler ()
-rolesPresentation =
+--------------------------------------------------------------------------------
+-- Presentation for the roles page
+--------------------------------------------------------------------------------
+
+rolesPresentation :: Roles -> ReactElementM ViewEventHandler ()
+rolesPresentation rs =
   div_ ["className"$="col-md-9"] $ do
     ol_ ["className"$="breadcrumb"] $ do
         li_ $ a_ $ span_ "Account settings"
@@ -81,24 +98,18 @@ rolesPresentation =
                     th_ "Role name"
                     th_ "Permissions"
                     th_ "Users"
-            tbody_ $ do
-              role
-              role
-              role
+            tbody_ $ mapM_ role (mapToList . unRoles $ rs)
 
-
-role :: ReactElementM ViewEventHandler ()
-role =
+role :: (RoleName, RoleAttributes) -> ReactElementM ViewEventHandler ()
+role (roleName, roleAttrs) =
   tr_ $ do
     td_ $ do
-        "Account administrator"
-        a_ ["href"$="role-edit.html"] "(edit)"
-    td_ $ em_ $ "All permissions"
-    td_ $ ul_ $ do
-        li_ "admin@mydomain.com"
+        elemText roleName
+        a_ ["href"$="role-edit.html"] " (edit)"
+    td_ $ ul_ $ forM_ (setToList $ _rolePermission $ roleAttrs) $ \p -> do
         li_ $ do
-            "otheradmin@mydomain.com"
-            a_ ["href"$="#"] "(revoke)"
+          elemText $ toUserLabel p
+    td_ $ ul_ $ forM_ (setToList $ _roleAssociatedUsers $ roleAttrs) $ \u -> do
         li_ $ do
-            "yetanotheradmin@mydomain.com"
-            a_ ["href"$="#"] "(revoke)"
+          elemText $ userMail u
+          a_ ["href"$="#"] " (revoke)"

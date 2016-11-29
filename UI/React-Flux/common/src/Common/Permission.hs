@@ -1,13 +1,14 @@
-{-# LANGUAGE DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE DeriveGeneric, OverloadedStrings, DeriveAnyClass #-}
 
 module Common.Permission where
 
 import Common.Prelude
+import Control.DeepSeq
 
 -- A permission can be a permission in several ambiti
 
 data Permission = PP ProductPermission | OP OrderPermission | UP UserPermission
-                deriving (Show, Eq, Ord, Generic)
+                deriving (Show, Eq, Ord, Generic, NFData)
 
 data ProductPermission
   = ViewAllProductDetails
@@ -15,7 +16,10 @@ data ProductPermission
   | EditProdPhotos
   | EditProdProperties
   | EditProdPrice
-  deriving (Show, Eq, Ord, Generic, Bounded, Enum)
+  deriving (Show, Eq, Ord, Generic, Bounded, Enum, NFData)
+
+allProductPermissions :: [Permission]
+allProductPermissions = map PP [minBound .. maxBound]
 
 data OrderPermission
   = ViewAllOrderDetails
@@ -24,13 +28,19 @@ data OrderPermission
   | ApplyDiscounts
   | CancelOrder
   | ChangeOrderContactDetails
-  deriving (Show, Eq, Ord, Generic, Bounded, Enum)
+  deriving (Show, Eq, Ord, Generic, Bounded, Enum, NFData)
+
+allOrderPermissions :: [Permission]
+allOrderPermissions = map OP [minBound .. maxBound]
 
 data UserPermission
   = ViewUserDetails
   | EditUserDetails
   | ChangeUserRole
-  deriving (Show, Eq, Ord, Generic, Bounded, Enum)
+  deriving (Show, Eq, Ord, Generic, Bounded, Enum, NFData)
+
+allUserPermissions :: [Permission]
+allUserPermissions = map UP [minBound .. maxBound]
 
 -- Generated JSON instances
 
