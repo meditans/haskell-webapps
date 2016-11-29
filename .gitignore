@@ -17,3 +17,5 @@ cabal.sandbox.config
 *.eventlog
 .stack-work/
 cabal.project.local
+/UI/React-Flux/todo/js-build/
+/UI/React-Flux/frontend/js-build/
