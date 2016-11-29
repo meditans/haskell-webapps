@@ -30,14 +30,15 @@ main = do
     _ -> return ()
   putStrLn "hey"
   reactRender "frontend" tabView Nothing
-  where
-    appsToTabs tabsName apps appViews =
-      tabApp tabsName $
-      zipWith
-        (\a v ->
-           TabbedApps.Tab (appName a) (\pr -> view v pr mempty) (appRouter a))
-        apps
-        appViews
+
+appsToTabs :: Text -> [App props] -> [ReactView TabbedApps.ParentRouter] -> App TabbedApps.ParentRouter
+appsToTabs tabsName apps appViews =
+  tabApp tabsName $
+  zipWith
+    (\a v ->
+       TabbedApps.Tab (appName a) (\pr -> view v pr mempty) (appRouter a))
+    apps
+    appViews
 
 tabApp :: Text -> [TabbedApps.Tab] -> App TabbedApps.ParentRouter
 tabApp name tabs =

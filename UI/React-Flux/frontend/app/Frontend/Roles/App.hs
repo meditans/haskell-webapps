@@ -105,7 +105,7 @@ role (roleName, roleAttrs) =
   tr_ $ do
     td_ $ do
         elemText roleName
-        a_ ["href"$="role-edit.html"] " (edit)"
+        a_ ["href"$="/frontend.html#/switchapp/2"] " (edit)"
     td_ $ ul_ $ forM_ (setToList $ _rolePermission $ roleAttrs) $ \p -> do
         li_ $ do
           elemText $ toUserLabel p

@@ -31,6 +31,10 @@ import           Unsafe.Coerce
 
 #endif
 
+--------------------------------------------------------------------------------
+-- Low level functions, to act on the browser bar when we're in ghcjs
+--------------------------------------------------------------------------------
+
 #ifdef __GHCJS__
 
 foreign import javascript unsafe
@@ -73,6 +77,11 @@ onLocationHashChange _ = return ()
 
 #endif
 
+--------------------------------------------------------------------------------
+-- Higher level functions, using Web Routes to construct routing from a store
+-- which has an instance of PathInfo for the StoreAction.
+--------------------------------------------------------------------------------
+
 childRoutePath :: WR.PathInfo action => action -> [T.Text]
 childRoutePath = WR.toPathSegments
 
@@ -93,11 +102,8 @@ initRouter router =
     stripHash path       = path
 
 storeRouter :: (StoreData store, WR.PathInfo (StoreAction store)) =>
-               ReactStore store -> ([T.Text] -> IO ())
-storeRouter store =
-  let site = WR.mkSitePI $ WR.runRouteT $ routerAlterStore
-  in
-    \rt -> either (const $ return ()) id $ WR.runSite "" site rt
+               ReactStore store -> [T.Text] -> IO ()
+storeRouter store rt = either (const $ return ()) id $ WR.runSite "" site rt
   where
-    routerAlterStore action =
-      liftIO $ alterStore store action
+    site = WR.mkSitePI $ WR.runRouteT $ routerAlterStore
+    routerAlterStore action = liftIO (alterStore store action)
