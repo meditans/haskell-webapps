@@ -32,13 +32,10 @@ main = do
   reactRender "frontend" tabView Nothing
 
 appsToTabs :: Text -> [App props] -> [ReactView TabbedApps.ParentRouter] -> App TabbedApps.ParentRouter
-appsToTabs tabsName apps appViews =
-  tabApp tabsName $
-  zipWith
-    (\a v ->
-       TabbedApps.Tab (appName a) (\pr -> view v pr mempty) (appRouter a))
-    apps
-    appViews
+appsToTabs tabsName = tabApp tabsName .: zipWith (\a v -> TabbedApps.Tab (appName a) (\pr -> view v pr mempty) (appRouter a))
+
+(.:) :: (c -> d) -> (a -> b -> c) -> (a -> b -> d)
+(f .: g) x y = f (g x y)
 
 tabApp :: Text -> [TabbedApps.Tab] -> App TabbedApps.ParentRouter
 tabApp name tabs =
