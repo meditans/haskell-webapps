@@ -17,11 +17,13 @@ import qualified Language.Javascript.JSaddle.Warp as JSWarp (run)
 import MockAPI
 
 main :: IO ()
-main = JSWarp.run 8081 $ mainWidget body
+-- main = JSWarp.run 8081 $ mainWidget body
+main = JSWarp.run 8081 $ mainWidget $ void $ textForm (constDyn "hey")
 
 body :: forall t m. MonadWidget t m => m ()
 body = do
   -- Instructions to use the server at localhost and to invoke the api
+  -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
   let url = BaseFullUrl Http "localhost" 8081 ""
       (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
 
@@ -41,6 +43,7 @@ body = do
       -- A visual feedback on authentication
       r <- holdDyn "" $ fmap parseR apiResponse
       el "h2" (dynText r)
+      text "Some more things"
 
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
@@ -83,10 +86,26 @@ styledButton conf t = do
   (e, _) <- element "button" conf (text t)
   return (domEvent Click e)
 
-
 --------------------------------------------------------------------------------
 -- Parse the response from the API
 parseR :: ReqResult Text -> Text
 parseR (ResponseSuccess a _) = a
 parseR (ResponseFailure a _) = "ResponseFailure: " <> a
-parseR (RequestFailure s) = "RequestFailure: " <> s
+parseR (RequestFailure s)    = "RequestFailure: " <> s
+
+---------------------------------------------------------------------------------
+-- Forms for the shaped approach:
+
+textForm :: MonadWidget t m => Dynamic t Text -> m (Dynamic t Text)
+textForm err = do
+  tb <- textInput def
+  elDynAttr "h1" (constDyn mempty) $ dynText ((<>) <$> pure "The error is: " <*> err)
+  dynText $ value tb
+  return $ value tb
+
+-- The maybe value is the error
+mockVal :: Text -> Maybe Text
+mockVal "carlo" = Nothing
+mockVal _       = Just "The user is wrong"
+
+

@@ -35,3 +35,10 @@ main = run 8081 (gzip gzipSettings $ serve (Proxy @MockApi) server)
 -- main = run 8081 (serve (Proxy @MockApi) server)
   where
     gzipSettings = def { gzipFiles = GzipCompress }
+
+---------------------- Validations
+
+serverOnlyValidation :: UserShaped Validation
+serverOnlyValidation = UserShaped
+  (Validation . Compose $ \m -> if m == "meditans@gmail.com" then Nothing else Just "User unknown")
+  (Validation . Compose $ \p -> if p == "password"           then Nothing else Just "Wrong password")

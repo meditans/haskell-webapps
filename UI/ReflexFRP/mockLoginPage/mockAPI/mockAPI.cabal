@@ -10,4 +10,7 @@ library
                      , servant
                      , text
                      , aeson
+                     , shaped
+                     , generics-sop
+                     , mtl
   default-language:    Haskell2010

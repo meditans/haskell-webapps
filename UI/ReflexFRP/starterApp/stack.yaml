@@ -22,7 +22,12 @@ extra-deps:
 - prim-uniq-0.1.0.1
 - ref-tf-0.4.0.1
 - zenc-0.1.1
+- MemoTrie-0.6.7
+- newtype-generics-0.5
+- wai-websockets-3.0.1.1
 
-flags: {}
+flags:
+  wai-websockets:
+    example: false
 
 extra-package-dbs: []

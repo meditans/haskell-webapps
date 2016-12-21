@@ -42,6 +42,10 @@ packages:
   extra-dep: true
   subdirs:
   - ghcjs-dom-jsffi
+- location:
+    git: https://github.com/meditans/shaped 
+    commit: a5dd09d6a52619655ce1e65b9afa0534156d4116
+  extra-dep: true
 
 extra-deps:
 - ghcjs-dom-0.7.0.3
