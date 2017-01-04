@@ -11,6 +11,7 @@
 
 module Main where
 
+import Servant.API
 import ClassyPrelude
 import Reflex
 import Reflex.Dom
@@ -18,6 +19,7 @@ import Servant.Reflex
 import Lens.Micro ((^.), to)
 import qualified Language.Javascript.JSaddle.Warp as JSWarp (run)
 
+import Data.Proxy
 import Data.Functor.Misc
 import Data.Functor.Const
 
@@ -31,34 +33,33 @@ main :: IO ()
 main = do
   -- putStrLn "Server listening on port 8081"
   -- JSWarp.run 8081 $ mainWidget $ void $ textForm mailInputConfig mockValUser
-  -- JSWarp.run 8081 $ mainWidget $ body
-  JSWarp.run 8081 $ mainWidget $ do
-    -- res <- form userWidget clientValidation
-    void $ form userWidget2 clientValidation
+  JSWarp.run 8081 $ mainWidget $ body
+  -- JSWarp.run 8081 $ mainWidget $ do
+  --   void $ form userWidget clientValidation
 
--- body :: forall t m. MonadWidget t m => m ()
--- body = do
---   -- Instructions to use the server at localhost and to invoke the api
---   -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
---   let url = BaseFullUrl Http "localhost" 8081 ""
---       (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
---   -- A description of the visual elements
---   divClass "login-clean" $ do
---     el "form" $ do
---       rec hiddenTitle
---           icon
---           mail <- textForm mailInputConfig mockValUser
---           pass <- textForm passInputConfig mockValPass
---           -- questo dovrebbe essere sostituito con una chiamata ad una funzione unica
---           let userResult = liftA2 (User) mail pass
---           send <- buttonElement send responseEvent
---           forgot
---           -- The actual API call
---           apiResponse <- invokeAPI (Right <$> userResult) send
---           let responseEvent = const () <$> apiResponse
---       -- A visual feedback on authentication
---       r <- holdDyn "" $ fmap parseR apiResponse
---       el "h2" (dynText r)
+body :: forall t m. MonadWidget t m => m ()
+body = do
+  -- Instructions to use the server at localhost and to invoke the api
+  -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
+  let url = BaseFullUrl Http "localhost" 8081 ""
+      (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
+  -- A description of the visual elements
+  divClass "login-clean" $ do
+    el "form" $ do
+      rec hiddenTitle
+          icon
+          user <- form userWidget clientValidation
+          let userOk = either (const False) (const True) <$> user
+          send <- buttonElement send responseEvent
+          forgot
+          -- The actual API call
+          -- apiResponse <- invokeAPI (Right <$> userResult) send
+          -- let responseEvent = const () <$> apiResponse
+      -- A visual feedback on authentication
+      -- r <- holdDyn "" $ fmap parseR apiResponse
+      -- el "h2" (dynText r)
+      text "ciao"
+  return ()
 
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
@@ -121,21 +122,6 @@ parseR (ResponseFailure a _) = "ResponseFailure: " <> a
 parseR (RequestFailure s)    = "RequestFailure: " <> s
 
 ---------------------------------------------------------------------------------
--- Forms for the shaped approach:
-
-textForm :: MonadWidget t m => TextInputConfig t -> (Text -> Maybe Text) -> m (Dynamic t Text)
-textForm conf val = do
-  textBox   <- textInput conf
-  firstBlur <- headE $ select (textBox ^. textInput_builderElement
-                                        . to _inputElement_element
-                                        . to _element_events)
-                              (WrapArg Blur)
-  err <- join <$> holdDyn (constDyn Nothing)
-                          ((val <$> value textBox) <$ firstBlur)
-  -- Let's represent the error
-  el "h4" $ dynText (maybe "" id <$> err)
-  return (value textBox)
-
 -- Quello che mi serve adesso e' un modo per trasformare un UserShaped fatto di
 -- tanti `m (Dynamic t (Either Text Text))`. In particolare dev'essere una cosa
 -- come sequence praticamente.
@@ -181,8 +167,6 @@ experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hz
     b :: SOP.SOP (Formlet2 t m) (Code User)
     b = fromSOPI $ SOP.from shapedFormlet
 
--- squish :: Reflex t => (Either a b -> c) -> (Dynamic t (Either a b)) -> Dynamic t c
-
 instance (Applicative f, Applicative g) => Applicative (f :.: g) where
     pure x = Comp (pure (pure x))
     Comp f <*> Comp x = Comp ((<*>) <$> f <*> x)
@@ -190,20 +174,46 @@ instance (Applicative f, Applicative g) => Applicative (f :.: g) where
 subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet2 t m a -> (m :.: Dynamic t) a
 subFun a (Fn f) = f a
 
-userWidget2 :: (MonadWidget t m) => UserShaped (Formlet2 t m)
-userWidget2 = UserShaped
+userWidget :: (MonadWidget t m) => UserShaped (Formlet2 t m)
+userWidget = UserShaped
   (fn $ \(Comp e) -> Comp $ do
       let unwrappedError = getConst <$> e
       dynamicError <- holdDyn Nothing unwrappedError
-      v <- value <$> textInput def
-      display dynamicError
-      return v)
+      userWidgetInternal mailInputConfig dynamicError)
   (fn $ \(Comp e) -> Comp $ do
       let unwrappedError = getConst <$> e
       dynamicError <- holdDyn Nothing unwrappedError
-      v <- value <$> textInput def
-      display dynamicError
-      return v)
+      userWidgetInternal passInputConfig dynamicError)
 
 nullError :: UserShaped (Const (Maybe Text))
 nullError = UserShaped (Const Nothing) (Const Nothing)
+
+-- type Formlet2 t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
+-- Forms for the shaped approach:
+
+textForm :: MonadWidget t m => TextInputConfig t -> (Text -> Maybe Text) -> m (Dynamic t Text)
+textForm conf val = do
+  textBox   <- textInput conf
+  firstBlur <- headE $ select (textBox ^. textInput_builderElement
+                                        . to _inputElement_element
+                                        . to _element_events)
+                              (WrapArg Blur)
+  err <- join <$> holdDyn (constDyn Nothing)
+                          ((val <$> value textBox) <$ firstBlur)
+  -- Let's represent the error
+  el "h4" $ dynText (maybe "" id <$> err)
+  return (value textBox)
+
+
+userWidgetInternal :: MonadWidget t m => TextInputConfig t -> Dynamic t (Maybe Text) -> m (Dynamic t Text)
+userWidgetInternal conf err = do
+  textBox   <- textInput conf
+  firstBlur <- headE $ select (textBox ^. textInput_builderElement
+                                        . to _inputElement_element
+                                        . to _element_events)
+                              (WrapArg Blur)
+  displayedErr <- join <$> holdDyn (constDyn Nothing)
+                          (err <$ firstBlur)
+  -- Let's represent the error
+  el "h4" $ dynText (maybe "" id <$> displayedErr)
+  return (value textBox)
