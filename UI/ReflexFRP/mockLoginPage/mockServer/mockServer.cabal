@@ -14,4 +14,7 @@ executable mockServer
                      , text
                      , warp
                      , wai-extra
+                     , shaped
+                     , generics-sop
+                     , aeson
   default-language:    Haskell2010
