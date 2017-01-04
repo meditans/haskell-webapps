@@ -39,11 +39,13 @@ packages:
   extra-dep: true
 
 extra-deps:
+- MemoTrie-0.6.7
 - ghcjs-dom-0.7.0.3
 - ghcjs-dom-jsaddle-0.7.0.3
 - jsaddle-0.7.0.0
 - jsaddle-dom-0.7.0.3
 - jsaddle-warp-0.7.0.0
+- newtype-generics-0.5
 - prim-uniq-0.1.0.1
 - ref-tf-0.4.0.1
 - zenc-0.1.1
