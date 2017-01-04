@@ -32,7 +32,6 @@ instance Generic User
 instance ToJSON User
 instance FromJSON User
 
--- type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] Text
 type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] (Either (UserShaped (Const (Maybe Text))) User)
           :<|> "assets" :> Raw
           :<|> Raw
@@ -53,6 +52,7 @@ data UserShaped f = UserShaped { userMailLike     :: f Text
 instance Generic (UserShaped f)
 
 instance ToJSON (UserShaped (Const (Maybe Text)))
+instance FromJSON (UserShaped (Const (Maybe Text)))
 
 instance Shaped User UserShaped where
   toShape   (User m p) = UserShaped (Identity m) (Identity p)
