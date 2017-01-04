@@ -12,21 +12,18 @@
 module Main where
 
 import ClassyPrelude
-import Data.Proxy
 import Reflex
 import Reflex.Dom
-import Servant.API
 import Servant.Reflex
 import Lens.Micro ((^.), to)
 import qualified Language.Javascript.JSaddle.Warp as JSWarp (run)
 
 import Data.Functor.Misc
 import Data.Functor.Const
-import Data.Functor.Compose
 
 import Shaped
 import qualified Generics.SOP as SOP
-import Generics.SOP ((:.:)(..), type (-.->)(..), K(..), I(..), hzipWith, Code, unComp, fn, unK)
+import Generics.SOP ((:.:)(..), type (-.->)(..), hzipWith, Code, unComp, fn)
 
 import MockAPI
 
@@ -37,32 +34,31 @@ main = do
   -- JSWarp.run 8081 $ mainWidget $ body
   JSWarp.run 8081 $ mainWidget $ do
     -- res <- form userWidget clientValidation
-    void $ form2 userWidget2 clientValidation
+    void $ form userWidget2 clientValidation
 
-body :: forall t m. MonadWidget t m => m ()
-body = do
-  -- Instructions to use the server at localhost and to invoke the api
-  -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
-  let url = BaseFullUrl Http "localhost" 8081 ""
-      (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
-
-  -- A description of the visual elements
-  divClass "login-clean" $ do
-    el "form" $ do
-      rec hiddenTitle
-          icon
-          mail <- textForm mailInputConfig mockValUser
-          pass <- textForm passInputConfig mockValPass
-          -- questo dovrebbe essere sostituito con una chiamata ad una funzione unica
-          let userResult = liftA2 (User) mail pass
-          send <- buttonElement send responseEvent
-          forgot
-          -- The actual API call
-          apiResponse <- invokeAPI (Right <$> userResult) send
-          let responseEvent = const () <$> apiResponse
-      -- A visual feedback on authentication
-      r <- holdDyn "" $ fmap parseR apiResponse
-      el "h2" (dynText r)
+-- body :: forall t m. MonadWidget t m => m ()
+-- body = do
+--   -- Instructions to use the server at localhost and to invoke the api
+--   -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
+--   let url = BaseFullUrl Http "localhost" 8081 ""
+--       (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
+--   -- A description of the visual elements
+--   divClass "login-clean" $ do
+--     el "form" $ do
+--       rec hiddenTitle
+--           icon
+--           mail <- textForm mailInputConfig mockValUser
+--           pass <- textForm passInputConfig mockValPass
+--           -- questo dovrebbe essere sostituito con una chiamata ad una funzione unica
+--           let userResult = liftA2 (User) mail pass
+--           send <- buttonElement send responseEvent
+--           forgot
+--           -- The actual API call
+--           apiResponse <- invokeAPI (Right <$> userResult) send
+--           let responseEvent = const () <$> apiResponse
+--       -- A visual feedback on authentication
+--       r <- holdDyn "" $ fmap parseR apiResponse
+--       el "h2" (dynText r)
 
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
@@ -150,20 +146,11 @@ textForm conf val = do
 -- Ho anche bisogno di qualcosa che contenga i moduli
 
 form :: MonadWidget t m
-     => UserShaped (Compose m (Dynamic t))
-     -> UserShaped (Validation (Either Text))
-     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-form uw uv = do
-  tentative <- experiment uw
-  let result = transfGen . flip validateRecord uv <$> tentative
-  return result
-
-form2 :: MonadWidget t m
      => UserShaped (Formlet2 t m)
      -> UserShaped (Validation (Either Text))
      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-form2 uf uv = mdo
-  tentative <- experiment' (splitShaped errorEvent) uf
+form uf uv = mdo
+  tentative <- experiment (splitShaped errorEvent) uf
   let validationResult = traceDyn "validationResult: " $ transfGen . flip validateRecord uv <$> tentative
       errorEvent = updated $ either id (const nullError) <$> validationResult
   return validationResult
@@ -178,25 +165,16 @@ splitShaped ev = UserShaped
   (Comp $ userMailLike     <$> ev)
   (Comp $ userPasswordLike <$> ev)
 
-experiment :: (MonadWidget t m) => UserShaped (Compose m (Dynamic t)) -> m (Dynamic t User)
-experiment = getCompose . fmap SOP.to . SOP.hsequence . fromSOPI . SOP.from
-
-userWidget :: (MonadWidget t m) => UserShaped (Compose m (Dynamic t))
-userWidget = UserShaped
-  (Compose $ value <$> textInput def)
-  (Compose $ value <$> textInput def)
-
 -- Temporary name
-type Formlet t m = Compose ((->) (Event t Text)) (Compose m (Dynamic t))
 type Formlet2 t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
 
 -- Questo non deve occuparsi di validazione: deve semplicemente disegnare il
 -- form e restituire l'utente candidato, ancora da validare.
-experiment' :: forall t m . (MonadWidget t m)
+experiment :: forall t m . (MonadWidget t m)
   => UserShaped (Event t :.: Const (Maybe Text))
   -> UserShaped (Formlet2 t m)
   -> m (Dynamic t User)
-experiment' shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
+experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
   where
     a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
     a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
@@ -211,14 +189,6 @@ instance (Applicative f, Applicative g) => Applicative (f :.: g) where
 
 subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet2 t m a -> (m :.: Dynamic t) a
 subFun a (Fn f) = f a
-
-userWidget' :: (MonadWidget t m) => UserShaped (Formlet t m)
-userWidget' = UserShaped
-  (Compose $ \_ -> Compose $ value <$> textInput def)
-  (Compose $ \_ -> Compose $ value <$> textInput def)
-
--- type Formlet2 t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
--- type Formlet2 t m Text = (Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)) Text
 
 userWidget2 :: (MonadWidget t m) => UserShaped (Formlet2 t m)
 userWidget2 = UserShaped
@@ -237,15 +207,3 @@ userWidget2 = UserShaped
 
 nullError :: UserShaped (Const (Maybe Text))
 nullError = UserShaped (Const Nothing) (Const Nothing)
-
-nullError' :: Reflex t => UserShaped (Event t :.: Const (Maybe Text))
-nullError' = UserShaped (Comp never) (Comp never)
--- Ho bisogno di lasciare un buco iniziale per l'errore che mi viene dal server
--- invece di
--- UserShaped (Compose m (Dynamic t))
-
--- che vuol dire mandare a in m (Dynamic t a)
--- dovremmo mandarlo in Event t Text -> m (Dynamic t a)
-
--- In questo modo, posso zippare con l'errore grande che mi sta entrando, e fare
--- sequence per ottenere la struttura.
