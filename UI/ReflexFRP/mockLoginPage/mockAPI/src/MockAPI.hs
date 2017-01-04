@@ -34,16 +34,17 @@ type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] Text
 
 ---------- Validations:
 
-clientValidation :: UserShaped Validation
+clientValidation :: UserShaped (Validation (Either Text))
 clientValidation = UserShaped
-  (Validation . Compose $ \m -> if m == "meditans@gmail.com" then Just m else Nothing)
-  (Validation . Compose $ \p -> if p == "password"           then Just p else Nothing)
+  (Validation . Comp $ \m -> if Data.Text.length m > 5 then Right m else Left "Username too short")
+  (Validation . Comp $ \p -> if p /= ""                then Right p else Left "Blank password")
 
 ---------- Additional declarations needed for the shaped approach (hide these
 ---------- with TH):
 
-data UserShaped f = UserShaped (f Text) (f Text)
-  deriving (GHC.Generic)
+data UserShaped f = UserShaped { userMailLike     :: f Text
+                               , userPasswordLike :: f Text}
+                  deriving (GHC.Generic)
 instance Generic (UserShaped f)
 
 instance Shaped User UserShaped where

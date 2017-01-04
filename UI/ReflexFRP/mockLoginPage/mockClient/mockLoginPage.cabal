@@ -20,6 +20,9 @@ executable mockClient
                      , mockAPI
                      , servant
                      , jsaddle-warp
+                     , microlens
+                     , shaped
+                     , generics-sop
   default-language:  Haskell2010
   if impl(ghcjs)
     ghc-options:    -dedupe
