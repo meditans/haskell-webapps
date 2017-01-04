@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications, DataKinds                                  #-}
 
 {-# LANGUAGE PartialTypeSignatures #-}
-{-# OPTIONS_GHC -fdefer-typed-holes #-}
+-- {-# OPTIONS_GHC -fdefer-typed-holes #-}
 
 module Main where
 
@@ -48,17 +48,18 @@ body = do
     el "form" $ do
       rec hiddenTitle
           icon
-          user <- form userWidget clientValidation
-          let userOk = either (const False) (const True) <$> user
+          user <- form userWidget clientValidation errorFromServer
+          -- let userOk = either (const False) (const True) <$> user
           send <- buttonElement send responseEvent
           forgot
           -- The actual API call
-          -- apiResponse <- invokeAPI (Right <$> userResult) send
-          -- let responseEvent = const () <$> apiResponse
+          apiResponse <- invokeAPI (either (const $ Left "Insert a valid user!") Right <$> user) send
+          let parsedResponse = parseReqResult <$> apiResponse
+              errorFromServer = fst . fanEither . snd . fanEither $ parsedResponse
+          let responseEvent = const () <$> apiResponse
       -- A visual feedback on authentication
-      -- r <- holdDyn "" $ fmap parseR apiResponse
-      -- el "h2" (dynText r)
-      text "ciao"
+      r <- holdDyn "" $ fmap (either id (either (const "") (const "Authenticated"))) parsedResponse
+      el "h2" (dynText r)
   return ()
 
 --------------------------------------------------------------------------------
@@ -68,23 +69,11 @@ hiddenTitle, icon :: DomBuilder t m => m ()
 hiddenTitle = elClass "h2" "sr-only" (text "Login Form")
 icon = divClass "illustration" (elClass "i" "icon ion-ios-navigate" $ pure ())
 
-mailInputElement :: MonadWidget t m => m (TextInput t)
-mailInputElement = textInput $
-  def & textInputConfig_attributes .~ constDyn
-        ("class" =: "form-control" <> "name" =: "email" <> "placeholder" =: "Email")
-      & textInputConfig_inputType .~ "email"
-
 mailInputConfig :: Reflex t => TextInputConfig t
 mailInputConfig =
   def & textInputConfig_attributes .~ constDyn
         ("class" =: "form-control" <> "name" =: "email" <> "placeholder" =: "Email")
       & textInputConfig_inputType .~ "email"
-
-passInputElement :: MonadWidget t m => m (TextInput t)
-passInputElement = textInput $
-  def & textInputConfig_attributes .~ constDyn
-        ("class" =: "form-control" <> "name" =: "password" <> "placeholder" =: "Password")
-      & textInputConfig_inputType .~ "password"
 
 passInputConfig :: Reflex t => TextInputConfig t
 passInputConfig =
@@ -115,30 +104,26 @@ styledButton conf t = do
   return (domEvent Click e)
 
 --------------------------------------------------------------------------------
--- Parse the response from the API
-parseR :: ReqResult Text -> Text
-parseR (ResponseSuccess a _) = a
-parseR (ResponseFailure a _) = "ResponseFailure: " <> a
-parseR (RequestFailure s)    = "RequestFailure: " <> s
+-- Parse the response from the API. This function could be in reflex-dom
+parseReqResult :: ReqResult a -> Either Text a
+parseReqResult (ResponseSuccess a _) = Right a
+parseReqResult (ResponseFailure t _) = Left $ "ResponseFailure: " <> t
+parseReqResult (RequestFailure s)    = Left $ "RequestFailure: " <> s
 
 ---------------------------------------------------------------------------------
--- Quello che mi serve adesso e' un modo per trasformare un UserShaped fatto di
--- tanti `m (Dynamic t (Either Text Text))`. In particolare dev'essere una cosa
--- come sequence praticamente.
 
--- Devo adesso aggregare le validazioni in un'unica validazione
--- UserShaped (Either Text)
-
--- Ho anche bisogno di qualcosa che contenga i moduli
-
+-- This function is completely generic, should be moved in
+-- Shaped.Validation.Reflex, or something
 form :: MonadWidget t m
-     => UserShaped (Formlet2 t m)
-     -> UserShaped (Validation (Either Text))
+     => UserShaped (Formlet t m)                 -- ^ a description of the widgets
+     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
+     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-form uf uv = mdo
-  tentative <- experiment (splitShaped errorEvent) uf
-  let validationResult = traceDyn "validationResult: " $ transfGen . flip validateRecord uv <$> tentative
-      errorEvent = updated $ either id (const nullError) <$> validationResult
+form shapedWidget shapedValidation errServer = mdo
+  tentative <- experiment (splitShaped errorEvent) shapedWidget
+  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
+      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
+                            , errServer ]
   return validationResult
 
 -- We have to transform a:
@@ -146,35 +131,44 @@ form uf uv = mdo
 -- into a
 -- nullError' :: UserShaped (Event t :.: Const (Maybe Text))
 -- to feed it back recursively to the form.
+-- This function seems completely general to me, so should be generalized and taken away
+-- TODO: Generalize
+-- TODO: Move
 splitShaped :: Reflex t => Event t (UserShaped (Const (Maybe Text))) -> UserShaped (Event t :.: Const (Maybe Text))
 splitShaped ev = UserShaped
   (Comp $ userMailLike     <$> ev)
   (Comp $ userPasswordLike <$> ev)
 
--- Temporary name
-type Formlet2 t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
+-- Temporary name, Form would probably be good too
+type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
 
--- Questo non deve occuparsi di validazione: deve semplicemente disegnare il
--- form e restituire l'utente candidato, ancora da validare.
+-- This is a generic function, just a way of zipping and sequencing the two parts
 experiment :: forall t m . (MonadWidget t m)
   => UserShaped (Event t :.: Const (Maybe Text))
-  -> UserShaped (Formlet2 t m)
+  -> UserShaped (Formlet t m)
   -> m (Dynamic t User)
 experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
   where
     a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
     a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
-    b :: SOP.SOP (Formlet2 t m) (Code User)
+    b :: SOP.SOP (Formlet t m) (Code User)
     b = fromSOPI $ SOP.from shapedFormlet
 
+-- Inline this
+subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet t m a -> (m :.: Dynamic t) a
+subFun a (Fn f) = f a
+
+-- Either move this temporary in shaped with the intent of reporting that
+-- upstream, or define a synonym. Discuss this on the generics-sop tracker!
 instance (Applicative f, Applicative g) => Applicative (f :.: g) where
     pure x = Comp (pure (pure x))
     Comp f <*> Comp x = Comp ((<*>) <$> f <*> x)
 
-subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet2 t m a -> (m :.: Dynamic t) a
-subFun a (Fn f) = f a
-
-userWidget :: (MonadWidget t m) => UserShaped (Formlet2 t m)
+-- This is completely general (the user really only has to provide
+-- userWidgetInternal) but the UserShaped structure has also to be provided by
+-- the user, so
+-- TODO: add some convenience functions to shield the user from the types
+userWidget :: (MonadWidget t m) => UserShaped (Formlet t m)
 userWidget = UserShaped
   (fn $ \(Comp e) -> Comp $ do
       let unwrappedError = getConst <$> e
@@ -185,26 +179,13 @@ userWidget = UserShaped
       dynamicError <- holdDyn Nothing unwrappedError
       userWidgetInternal passInputConfig dynamicError)
 
+-- This could be generated automatically, in fact it's used only in the `form`
+-- function, which should be supplied by the library.
 nullError :: UserShaped (Const (Maybe Text))
 nullError = UserShaped (Const Nothing) (Const Nothing)
 
--- type Formlet2 t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
--- Forms for the shaped approach:
-
-textForm :: MonadWidget t m => TextInputConfig t -> (Text -> Maybe Text) -> m (Dynamic t Text)
-textForm conf val = do
-  textBox   <- textInput conf
-  firstBlur <- headE $ select (textBox ^. textInput_builderElement
-                                        . to _inputElement_element
-                                        . to _element_events)
-                              (WrapArg Blur)
-  err <- join <$> holdDyn (constDyn Nothing)
-                          ((val <$> value textBox) <$ firstBlur)
-  -- Let's represent the error
-  el "h4" $ dynText (maybe "" id <$> err)
-  return (value textBox)
-
-
+-- Forms for the shaped approach: This should be supplied by the user, as it's a
+-- rendering of the particular markup the user wants for the form.
 userWidgetInternal :: MonadWidget t m => TextInputConfig t -> Dynamic t (Maybe Text) -> m (Dynamic t Text)
 userWidgetInternal conf err = do
   textBox   <- textInput conf
@@ -212,8 +193,6 @@ userWidgetInternal conf err = do
                                         . to _inputElement_element
                                         . to _element_events)
                               (WrapArg Blur)
-  displayedErr <- join <$> holdDyn (constDyn Nothing)
-                          (err <$ firstBlur)
-  -- Let's represent the error
-  el "h4" $ dynText (maybe "" id <$> displayedErr)
+  displayedErr <- join <$> holdDyn (constDyn Nothing) (err <$ firstBlur)
+  el "error" $ dynText (maybe "" id <$> displayedErr)
   return (value textBox)
