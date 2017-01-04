@@ -1,9 +1,12 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DataKinds, DeriveGeneric, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings, TypeOperators                #-}
 
 module MockAPI where
 
 import Data.Aeson
+import Data.Aeson.TH
 import Data.Text
 
 -- How can I avoid the need for qualifying things here?
@@ -15,6 +18,7 @@ import           Servant.API
 import Control.Monad.Identity
 import Data.Functor.Classes
 import Data.Functor.Compose
+import Data.Functor.Const
 import Generics.SOP
 import Shaped
 
@@ -28,7 +32,8 @@ instance Generic User
 instance ToJSON User
 instance FromJSON User
 
-type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] Text
+-- type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] Text
+type MockApi = "auth" :> ReqBody '[JSON] User :> Post '[JSON] (Either (UserShaped (Const (Maybe Text))) User)
           :<|> "assets" :> Raw
           :<|> Raw
 
@@ -46,6 +51,8 @@ data UserShaped f = UserShaped { userMailLike     :: f Text
                                , userPasswordLike :: f Text}
                   deriving (GHC.Generic)
 instance Generic (UserShaped f)
+
+instance ToJSON (UserShaped (Const (Maybe Text)))
 
 instance Shaped User UserShaped where
   toShape   (User m p) = UserShaped (Identity m) (Identity p)
