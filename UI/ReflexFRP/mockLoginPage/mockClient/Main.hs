@@ -26,7 +26,7 @@ import Data.Functor.Const
 
 import Shaped
 import qualified Generics.SOP as SOP
-import Generics.SOP ((:.:)(..), type (-.->)(..), hzipWith, Code, unComp, fn)
+import Generics.SOP ((:.:)(..), type (-.->)(..), hzipWith, Code, unComp)
 
 import MockAPI
 
@@ -49,8 +49,7 @@ body = do
     el "form" $ do
       rec hiddenTitle
           icon
-          -- user <- form userWidget clientValidation errorFromServer
-          user <- formNEW userWidgetNEW clientValidation errorFromServer
+          user <- form userWidget clientValidation errorFromServer
           -- let userOk = either (const False) (const True) <$> user
           send <- buttonElement send responseEvent
           forgot
@@ -115,24 +114,12 @@ parseReqResult (RequestFailure s)    = Left s
 -- This function is completely generic, should be moved in
 -- Shaped.Validation.Reflex, or something
 form :: MonadWidget t m
-     => UserShaped (Formlet t m)                  -- ^ a description of the widgets
+     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
      -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
      -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
 form shapedWidget shapedValidation errServer = mdo
   tentative <- experiment (splitShaped errorEvent) shapedWidget
-  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
-      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
-                            , errServer ]
-  return validationResult
-
-formNEW :: MonadWidget t m
-     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
-     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
-     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
-     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-formNEW shapedWidget shapedValidation errServer = mdo
-  tentative <- experimentNEW (splitShaped errorEvent) shapedWidget
   let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
       errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
                             , errServer ]
@@ -155,14 +142,7 @@ splitShaped ev = UserShaped
 type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
 
 -- This could help with the user facing API
-
-type Formlet' t m a = Event t (Maybe Text) -> m (Dynamic t a)
-
--- This is a simpler version, provided that we automate the error syntesis in
--- the `form` function
-
 -- type Formlet'' t m a = Dynamic t (Maybe Text) -> m (Dynamic t a)
-
 -- The type approach isn't really workable, as usually because type synonyms
 -- cannot be partially applied. So we're left either with constructing newtypes
 -- for this, or do only a smart constructor. But, if we want to write the type
@@ -170,39 +150,20 @@ type Formlet' t m a = Event t (Maybe Text) -> m (Dynamic t a)
 
 newtype FormletSimple t m a = FormletSimple (Dynamic t (Maybe Text) -> m (Dynamic t a))
 
--- This isn't enough to shield the user from the complexity of userWidget
-toFormlet :: MonadWidget t m => Formlet' t m a -> Formlet t m a
-toFormlet f = Fn $ \(Comp errorEvent) -> (Comp . f) (getConst <$> errorEvent)
-
 -- This is a generic function, just a way of zipping and sequencing the two parts
 experiment :: forall t m . (MonadWidget t m)
   => UserShaped (Event t :.: Const (Maybe Text))
-  -> UserShaped (Formlet t m)
-  -> m (Dynamic t User)
-experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
-  where
-    a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
-    a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
-    b :: SOP.SOP (Formlet t m) (Code User)
-    b = fromSOPI $ SOP.from shapedFormlet
-
-experimentNEW :: forall t m . (MonadWidget t m)
-  => UserShaped (Event t :.: Const (Maybe Text))
   -> UserShaped (FormletSimple t m)
   -> m (Dynamic t User)
-experimentNEW shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFunNEW a b
+experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
   where
     a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
     a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
     b :: SOP.SOP (FormletSimple t m) (Code User)
     b = fromSOPI $ SOP.from shapedFormlet
 
--- Inline this
-subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet t m a -> (m :.: Dynamic t) a
-subFun a (Fn f) = f a
-
-subFunNEW :: MonadWidget t m => (Event t :.: Const (Maybe Text)) a -> FormletSimple t m a -> (m :.: Dynamic t) a
-subFunNEW (Comp a) (FormletSimple f) = Comp $ do
+subFun :: MonadWidget t m => (Event t :.: Const (Maybe Text)) a -> FormletSimple t m a -> (m :.: Dynamic t) a
+subFun (Comp a) (FormletSimple f) = Comp $ do
   let eventWithoutConst = getConst <$> a
   dynamicError <- holdDyn Nothing eventWithoutConst
   f dynamicError
@@ -213,23 +174,8 @@ instance (Applicative f, Applicative g) => Applicative (f :.: g) where
     pure x = Comp (pure (pure x))
     Comp f <*> Comp x = Comp ((<*>) <$> f <*> x)
 
--- This is completely general (the user really only has to provide
--- userWidgetInternal) but the UserShaped structure has also to be provided by
--- the user, so
--- TODO: add some convenience functions to shield the user from the types
-userWidget :: (MonadWidget t m) => UserShaped (Formlet t m)
+userWidget :: (MonadWidget t m) => UserShaped (FormletSimple t m)
 userWidget = UserShaped
-  (fn $ \(Comp e) -> Comp $ do
-      let unwrappedError = getConst <$> e
-      dynamicError <- holdDyn Nothing unwrappedError
-      userWidgetInternal mailInputConfig dynamicError)
-  (fn $ \(Comp e) -> Comp $ do
-      let unwrappedError = getConst <$> e
-      dynamicError <- holdDyn Nothing unwrappedError
-      userWidgetInternal passInputConfig dynamicError)
-
-userWidgetNEW :: (MonadWidget t m) => UserShaped (FormletSimple t m)
-userWidgetNEW = UserShaped
   (FormletSimple $ userWidgetInternal mailInputConfig)
   (FormletSimple $ userWidgetInternal passInputConfig)
 
