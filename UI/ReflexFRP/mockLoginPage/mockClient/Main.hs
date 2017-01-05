@@ -7,7 +7,7 @@
 {-# LANGUAGE TypeApplications, DataKinds                                  #-}
 
 {-# LANGUAGE PartialTypeSignatures #-}
--- {-# OPTIONS_GHC -fdefer-typed-holes #-}
+{-# OPTIONS_GHC -fdefer-typed-holes #-}
 
 module Main where
 
@@ -53,13 +53,14 @@ body = do
           send <- buttonElement send responseEvent
           forgot
           -- The actual API call
-          apiResponse <- invokeAPI (either (const $ Left "Insert a valid user!") Right <$> user) send
+          apiResponse <- invokeAPI (either (const $ Left "Please correct the errors above") Right <$> user) send
           let parsedResponse = parseReqResult <$> apiResponse
+              authFromServer  = snd . fanEither . snd . fanEither $ parsedResponse
               errorFromServer = fst . fanEither . snd . fanEither $ parsedResponse
-          let responseEvent = const () <$> apiResponse
+          let responseEvent = () <$ apiResponse
       -- A visual feedback on authentication
-      r <- holdDyn "" $ fmap (either id (either (const "") (const "Authenticated"))) parsedResponse
-      el "h2" (dynText r)
+      authOkFeedback <- holdDyn "" ("Authenticated" <$ authFromServer)
+      el "h2" (dynText authOkFeedback)
   return ()
 
 --------------------------------------------------------------------------------
@@ -82,7 +83,9 @@ passInputConfig =
       & textInputConfig_inputType .~ "password"
 
 buttonElement :: DomBuilder t m => Event t () -> Event t () -> m (Event t ())
-buttonElement disable enable = divClass "form-group" (styledButton conf "Log in")
+buttonElement disable enable = divClass "form-group" $ do
+  (e, _) <- element "button" conf (text "Log in")
+  return (domEvent Click e)
   where
     conf = def & elementConfig_initialAttributes .~ initialAttr
                & elementConfig_modifyAttributes  .~ mergeWith (\_ b -> b)
@@ -97,25 +100,20 @@ forgot = elAttr "a"
   ("href" =: "#" <> "class" =: "forgot")
   (text "Forgot your email or password?")
 
------ This function should be contributed back to reflex-frp
-styledButton :: DomBuilder t m => ElementConfig EventResult t m -> Text -> m (Event t ())
-styledButton conf t = do
-  (e, _) <- element "button" conf (text t)
-  return (domEvent Click e)
-
 --------------------------------------------------------------------------------
--- Parse the response from the API. This function could be in reflex-dom
+-- Parse the response from the API. This function could be in servant-reflex
+-- (not in reflex-dom). In the meantime we'll keep it in shaped.
 parseReqResult :: ReqResult a -> Either Text a
 parseReqResult (ResponseSuccess a _) = Right a
-parseReqResult (ResponseFailure t _) = Left $ "ResponseFailure: " <> t
-parseReqResult (RequestFailure s)    = Left $ "RequestFailure: " <> s
+parseReqResult (ResponseFailure t _) = Left t
+parseReqResult (RequestFailure s)    = Left s
 
 ---------------------------------------------------------------------------------
 
 -- This function is completely generic, should be moved in
 -- Shaped.Validation.Reflex, or something
 form :: MonadWidget t m
-     => UserShaped (Formlet t m)                 -- ^ a description of the widgets
+     => UserShaped (Formlet t m)                  -- ^ a description of the widgets
      -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
      -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
@@ -141,6 +139,19 @@ splitShaped ev = UserShaped
 
 -- Temporary name, Form would probably be good too
 type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
+
+-- This could help with the user facing API
+type Formlet' t m a = Event t (Maybe Text) -> m (Dynamic t a)
+
+-- This is a simpler version, provided that we automate the error syntesis in
+-- the `form` function
+type Formlet'' t m a = Dynamic t (Maybe Text) -> m (Dynamic t a)
+
+
+
+-- This isn't enough to shield the user from the complexity of userWidget
+toFormlet :: MonadWidget t m => Formlet' t m a -> Formlet t m a
+toFormlet f = Fn $ \(Comp errorEvent) -> (Comp . f) (getConst <$> errorEvent)
 
 -- This is a generic function, just a way of zipping and sequencing the two parts
 experiment :: forall t m . (MonadWidget t m)
@@ -178,6 +189,12 @@ userWidget = UserShaped
       let unwrappedError = getConst <$> e
       dynamicError <- holdDyn Nothing unwrappedError
       userWidgetInternal passInputConfig dynamicError)
+
+-- Let's extract the function that transforms internally the 
+
+-- type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
+-- userWidgetSimple :: MonadWidget t m => Dynamic t (Maybe Text) -> m (Dynamic t Text)
+-- userWidgetSimple d = 
 
 -- This could be generated automatically, in fact it's used only in the `form`
 -- function, which should be supplied by the library.
