@@ -45,25 +45,61 @@ body = do
   let url = BaseFullUrl Http "localhost" 8081 ""
       (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
   -- A description of the visual elements
-  divClass "login-clean" $ do
-    el "form" $ mdo
-      hiddenTitle
-      icon
-      user <- form userWidget clientValidation formErrorFromServer
-      send <- buttonElement send responseEvent
-      forgotYourUsername
-      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
-                        in (fmap . fmap) parseReqResult (invokeAPI query send)
-      let authFromServer      = snd . fanEither . snd . fanEither $ serverResponse
-          formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
-          responseEvent = () <$ serverResponse
-      -- A visual feedback for errors:
-      a <- holdDyn "" $ either id (const "") <$> serverResponse
-      el "h2" (dynText a)
-      -- A visual feedback on authentication:
-      authOkFeedback <- holdDyn "" ("Authenticated" <$ authFromServer)
-      el "h2" (dynText authOkFeedback)
+  void . divClass "login-clean" . el "form" $ do
+    hiddenTitle
+    icon
+    (_, serverResponse) <- formNEW userWidget clientValidation invokeAPI
+    forgotYourUsername
+    el "h3" (dynText =<< feedback serverResponse)
   return ()
+
+feedback :: MonadWidget t m
+         => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+         -> m (Dynamic t Text)
+feedback e = holdDyn "" . ffor e $
+  either id
+         (either (const "Please fill correctly the informations above")
+                 (const "Authenticated"))
+
+
+-- serverCommError :: MonadWidget t m
+--                 => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+--                 -> m (Dynamic t (Maybe Text))
+-- serverCommError e = holdDyn Nothing $ either Just (const Nothing) <$> e
+
+-- serverAuth :: Reflex t
+--            => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+--            -> Event t User
+-- serverAuth = snd . fanEither . snd . fanEither
+
+-- serverAuth' :: Reflex t
+--             => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+--             -> m (Dynamic t (Maybe User))
+-- serverAuth' = snd . fanEither . snd . fanEither
+
+-- serverFormError :: MonadWidget t m
+--                 => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+--                 -> m (UserShaped (Const (Maybe Text)))
+-- serverFormError e = holdDyn Nothing $ either Just (const Nothing) <$> e
+
+-- displayMaybe :: MonadWidget t m => Dynamic t (Maybe a) -> (a -> m ()) -> m ()
+-- displayMaybe d f = void . dyn $ maybe (pure ()) f <$> d
+
+-- A more comprehensive alternative to a form
+formNEW :: MonadWidget t m
+            => UserShaped (FormletSimple t m)
+            -> UserShaped (Validation (Either Text))
+            -> Endpoint t m
+            -> m ( Dynamic t (Either (UserShaped (Const (Maybe Text))) User)
+                 , Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User)) )
+formNEW shapedWidget clientVal endpoint = do
+  rec user <- form shapedWidget clientVal formErrorFromServer
+      send <- buttonElement send responseEvent
+      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
+                         in (fmap . fmap) parseReqResult (endpoint query send)
+      let formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
+          responseEvent = () <$ serverResponse
+  return (user, serverResponse)
 
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
@@ -153,18 +189,18 @@ type Endpoint t m = Dynamic t (Either Text User)
                  -> Event t ()
                  -> m (Event t (ReqResult (Either (UserShaped (Const (Maybe Text))) User)))
 
--- formAllIncluded :: MonadWidget t m
---      => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
---      -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
---      -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server, to eliminate
---      -> 
---      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
--- formAllIncluded shapedWidget shapedValidation errServer = mdo
---   tentative <- createInterface (splitShaped errorEvent) shapedWidget
---   let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
---       errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
---                             , errServer ]
---   return validationResult
+
+formAllIncluded :: MonadWidget t m
+     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
+     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
+     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server, to eliminate
+     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
+formAllIncluded shapedWidget shapedValidation errServer = mdo
+  tentative <- createInterface (splitShaped errorEvent) shapedWidget
+  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
+      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
+                            , errServer ]
+  return validationResult
 
 -- We have to transform a:
 -- eResult :: Event t (UserShaped (Const (Maybe Text)))
