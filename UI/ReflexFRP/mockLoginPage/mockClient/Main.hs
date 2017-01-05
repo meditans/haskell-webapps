@@ -46,20 +46,21 @@ body = do
       (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
   -- A description of the visual elements
   divClass "login-clean" $ do
-    el "form" $ do
-      rec hiddenTitle
-          icon
-          user <- form userWidget clientValidation errorFromServer
-          -- let userOk = either (const False) (const True) <$> user
-          send <- buttonElement send responseEvent
-          forgot
-          -- The actual API call
-          apiResponse <- invokeAPI (either (const $ Left "Please correct the errors above") Right <$> user) send
-          let parsedResponse = parseReqResult <$> apiResponse
-              authFromServer  = snd . fanEither . snd . fanEither $ parsedResponse
-              errorFromServer = fst . fanEither . snd . fanEither $ parsedResponse
-          let responseEvent = () <$ apiResponse
-      -- A visual feedback on authentication
+    el "form" $ mdo
+      hiddenTitle
+      icon
+      user <- form userWidget clientValidation formErrorFromServer
+      send <- buttonElement send responseEvent
+      forgotYourUsername
+      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
+                        in (fmap . fmap) parseReqResult (invokeAPI query send)
+      let authFromServer      = snd . fanEither . snd . fanEither $ serverResponse
+          formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
+          responseEvent = () <$ serverResponse
+      -- A visual feedback for errors:
+      a <- holdDyn "" $ either id (const "") <$> serverResponse
+      el "h2" (dynText a)
+      -- A visual feedback on authentication:
       authOkFeedback <- holdDyn "" ("Authenticated" <$ authFromServer)
       el "h2" (dynText authOkFeedback)
   return ()
@@ -96,10 +97,33 @@ buttonElement disable enable = divClass "form-group" $ do
     disableAttr = fmap Just initialAttr  <> "disabled" =: Just "true"
     enableAttr  = fmap Just initialAttr  <> "disabled" =: Nothing
 
-forgot :: DomBuilder t m => m ()
-forgot = elAttr "a"
-  ("href" =: "#" <> "class" =: "forgot")
+forgotYourUsername :: DomBuilder t m => m ()
+forgotYourUsername = elAttr "a"
+  ("href" =: "#" <> "class" =: "forgotYourUsername")
   (text "Forgot your email or password?")
+
+userWidget :: (MonadWidget t m) => UserShaped (FormletSimple t m)
+userWidget = UserShaped
+  (FormletSimple $ userWidgetInternal mailInputConfig)
+  (FormletSimple $ userWidgetInternal passInputConfig)
+
+-- Forms for the shaped approach: This should be supplied by the user, as it's a
+-- rendering of the particular markup the user wants for the form.
+userWidgetInternal :: MonadWidget t m => TextInputConfig t -> Dynamic t (Maybe Text) -> m (Dynamic t Text)
+userWidgetInternal conf err = do
+  textBox   <- textInput conf
+  firstBlur <- headE $ select (textBox ^. textInput_builderElement
+                                        . to _inputElement_element
+                                        . to _element_events)
+                              (WrapArg Blur)
+  displayedErr <- join <$> holdDyn (constDyn Nothing) (err <$ firstBlur)
+  el "error" $ dynText (maybe "" id <$> displayedErr)
+  return (value textBox)
+
+
+--------------------------------------------------------------------------------
+-- Things to be moved out of here
+--------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
 -- Parse the response from the API. This function could be in servant-reflex
@@ -119,11 +143,28 @@ form :: MonadWidget t m
      -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
 form shapedWidget shapedValidation errServer = mdo
-  tentative <- experiment (splitShaped errorEvent) shapedWidget
+  tentative <- createInterface (splitShaped errorEvent) shapedWidget
   let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
       errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
                             , errServer ]
   return validationResult
+
+type Endpoint t m = Dynamic t (Either Text User)
+                 -> Event t ()
+                 -> m (Event t (ReqResult (Either (UserShaped (Const (Maybe Text))) User)))
+
+-- formAllIncluded :: MonadWidget t m
+--      => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
+--      -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
+--      -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server, to eliminate
+--      -> 
+--      -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
+-- formAllIncluded shapedWidget shapedValidation errServer = mdo
+--   tentative <- createInterface (splitShaped errorEvent) shapedWidget
+--   let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
+--       errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
+--                             , errServer ]
+--   return validationResult
 
 -- We have to transform a:
 -- eResult :: Event t (UserShaped (Const (Maybe Text)))
@@ -151,11 +192,11 @@ type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
 newtype FormletSimple t m a = FormletSimple (Dynamic t (Maybe Text) -> m (Dynamic t a))
 
 -- This is a generic function, just a way of zipping and sequencing the two parts
-experiment :: forall t m . (MonadWidget t m)
+createInterface :: forall t m . (MonadWidget t m)
   => UserShaped (Event t :.: Const (Maybe Text))
   -> UserShaped (FormletSimple t m)
   -> m (Dynamic t User)
-experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
+createInterface shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFun a b
   where
     a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
     a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
@@ -174,25 +215,7 @@ instance (Applicative f, Applicative g) => Applicative (f :.: g) where
     pure x = Comp (pure (pure x))
     Comp f <*> Comp x = Comp ((<*>) <$> f <*> x)
 
-userWidget :: (MonadWidget t m) => UserShaped (FormletSimple t m)
-userWidget = UserShaped
-  (FormletSimple $ userWidgetInternal mailInputConfig)
-  (FormletSimple $ userWidgetInternal passInputConfig)
-
 -- This could be generated automatically, in fact it's used only in the `form`
 -- function, which should be supplied by the library.
 nullError :: UserShaped (Const (Maybe Text))
 nullError = UserShaped (Const Nothing) (Const Nothing)
-
--- Forms for the shaped approach: This should be supplied by the user, as it's a
--- rendering of the particular markup the user wants for the form.
-userWidgetInternal :: MonadWidget t m => TextInputConfig t -> Dynamic t (Maybe Text) -> m (Dynamic t Text)
-userWidgetInternal conf err = do
-  textBox   <- textInput conf
-  firstBlur <- headE $ select (textBox ^. textInput_builderElement
-                                        . to _inputElement_element
-                                        . to _element_events)
-                              (WrapArg Blur)
-  displayedErr <- join <$> holdDyn (constDyn Nothing) (err <$ firstBlur)
-  el "error" $ dynText (maybe "" id <$> displayedErr)
-  return (value textBox)
