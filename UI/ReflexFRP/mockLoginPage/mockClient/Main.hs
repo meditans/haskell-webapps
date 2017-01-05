@@ -6,6 +6,7 @@
 {-# LANGUAGE OverloadedStrings, RecursiveDo, ScopedTypeVariables          #-}
 {-# LANGUAGE TypeApplications, DataKinds                                  #-}
 
+
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# OPTIONS_GHC -fdefer-typed-holes #-}
 
@@ -48,7 +49,8 @@ body = do
     el "form" $ do
       rec hiddenTitle
           icon
-          user <- form userWidget clientValidation errorFromServer
+          -- user <- form userWidget clientValidation errorFromServer
+          user <- formNEW userWidgetNEW clientValidation errorFromServer
           -- let userOk = either (const False) (const True) <$> user
           send <- buttonElement send responseEvent
           forgot
@@ -124,6 +126,18 @@ form shapedWidget shapedValidation errServer = mdo
                             , errServer ]
   return validationResult
 
+formNEW :: MonadWidget t m
+     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
+     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
+     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
+     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
+formNEW shapedWidget shapedValidation errServer = mdo
+  tentative <- experimentNEW (splitShaped errorEvent) shapedWidget
+  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
+      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
+                            , errServer ]
+  return validationResult
+
 -- We have to transform a:
 -- eResult :: Event t (UserShaped (Const (Maybe Text)))
 -- into a
@@ -141,13 +155,20 @@ splitShaped ev = UserShaped
 type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
 
 -- This could help with the user facing API
+
 type Formlet' t m a = Event t (Maybe Text) -> m (Dynamic t a)
 
 -- This is a simpler version, provided that we automate the error syntesis in
 -- the `form` function
-type Formlet'' t m a = Dynamic t (Maybe Text) -> m (Dynamic t a)
 
+-- type Formlet'' t m a = Dynamic t (Maybe Text) -> m (Dynamic t a)
 
+-- The type approach isn't really workable, as usually because type synonyms
+-- cannot be partially applied. So we're left either with constructing newtypes
+-- for this, or do only a smart constructor. But, if we want to write the type
+-- for the shaped drawingForm, it has to be a newtype.
+
+newtype FormletSimple t m a = FormletSimple (Dynamic t (Maybe Text) -> m (Dynamic t a))
 
 -- This isn't enough to shield the user from the complexity of userWidget
 toFormlet :: MonadWidget t m => Formlet' t m a -> Formlet t m a
@@ -165,9 +186,26 @@ experiment shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hz
     b :: SOP.SOP (Formlet t m) (Code User)
     b = fromSOPI $ SOP.from shapedFormlet
 
+experimentNEW :: forall t m . (MonadWidget t m)
+  => UserShaped (Event t :.: Const (Maybe Text))
+  -> UserShaped (FormletSimple t m)
+  -> m (Dynamic t User)
+experimentNEW shapedError shapedFormlet = unComp . fmap SOP.to . SOP.hsequence $ hzipWith subFunNEW a b
+  where
+    a :: SOP.POP (Event t :.: Const (Maybe Text)) (Code User)
+    a = singleSOPtoPOP . fromSOPI $ SOP.from shapedError
+    b :: SOP.SOP (FormletSimple t m) (Code User)
+    b = fromSOPI $ SOP.from shapedFormlet
+
 -- Inline this
 subFun :: (Event t :.: Const (Maybe Text)) a -> Formlet t m a -> (m :.: Dynamic t) a
 subFun a (Fn f) = f a
+
+subFunNEW :: MonadWidget t m => (Event t :.: Const (Maybe Text)) a -> FormletSimple t m a -> (m :.: Dynamic t) a
+subFunNEW (Comp a) (FormletSimple f) = Comp $ do
+  let eventWithoutConst = getConst <$> a
+  dynamicError <- holdDyn Nothing eventWithoutConst
+  f dynamicError
 
 -- Either move this temporary in shaped with the intent of reporting that
 -- upstream, or define a synonym. Discuss this on the generics-sop tracker!
@@ -190,11 +228,10 @@ userWidget = UserShaped
       dynamicError <- holdDyn Nothing unwrappedError
       userWidgetInternal passInputConfig dynamicError)
 
--- Let's extract the function that transforms internally the 
-
--- type Formlet t m = Event t :.: Const (Maybe Text) -.-> m :.: (Dynamic t)
--- userWidgetSimple :: MonadWidget t m => Dynamic t (Maybe Text) -> m (Dynamic t Text)
--- userWidgetSimple d = 
+userWidgetNEW :: (MonadWidget t m) => UserShaped (FormletSimple t m)
+userWidgetNEW = UserShaped
+  (FormletSimple $ userWidgetInternal mailInputConfig)
+  (FormletSimple $ userWidgetInternal passInputConfig)
 
 -- This could be generated automatically, in fact it's used only in the `form`
 -- function, which should be supplied by the library.
