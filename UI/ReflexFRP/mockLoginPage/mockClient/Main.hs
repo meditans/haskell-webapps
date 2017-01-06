@@ -51,7 +51,7 @@ body :: forall t m. MonadWidget t m => m ()
 body = void . divClass "login-clean" . el "form" $ do
   hiddenTitle
   icon
-  (_, serverResponse) <- formNEW userWidget clientValidation invokeAPI
+  (_, serverResponse) <- form userWidget clientValidation invokeAPI
   forgotYourUsername
   el "h3" (dynText =<< feedback serverResponse)
 
@@ -133,39 +133,38 @@ parseReqResult (RequestFailure s)    = Left s
 ---------------------------------------------------------------------------------
 
 -- A more comprehensive alternative to a form
-formNEW :: MonadWidget t m
+form :: MonadWidget t m
             => UserShaped (FormletSimple t m)
             -> UserShaped (Validation (Either Text))
             -> Endpoint t m
             -> m ( Dynamic t (Either (UserShaped (Const (Maybe Text))) User)
                  , Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User)) )
-formNEW shapedWidget clientVal endpoint = do
-  rec user <- form shapedWidget clientVal formErrorFromServer
-      send <- buttonElement send responseEvent
-      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
-                         in (fmap . fmap) parseReqResult (endpoint query send)
-      let formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
-          responseEvent = () <$ serverResponse
-  return (user, serverResponse)
-
--- This function is completely generic, should be moved in
--- Shaped.Validation.Reflex, or something
-form :: MonadWidget t m
-     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
-     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
-     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server
-     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-form shapedWidget shapedValidation errServer = mdo
-  tentative <- createInterface (splitShaped errorEvent) shapedWidget
-  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
-      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
-                            , errServer ]
-  return validationResult
+form shapedWidget clientVal endpoint = mdo
+  -- Here I read a tentative user from the created interface
+  rawUser <- createInterface (splitShaped errorEvent) shapedWidget
+  -- Here I define the button. This could probably be mixed with the button code
+  send <- buttonElement send responseEvent
+  -- This part does the server request and parses back the response without
+  -- depending on the types in servant-reflex
+  serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> validationResult
+                    in (fmap . fmap) parseReqResult (endpoint query send)
+  let
+    -- Validation result is the rawUser ran through the validation
+    validationResult = transfGen . flip validateRecord clientVal <$> rawUser
+    -- Error event is the sum of the event from the form and that of the server
+    errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
+                          , formErrorFromServer ]
+    -- Here we retrieve only the error from the server events
+    formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
+    -- This is the event himself, to be used for button disabling
+    responseEvent = () <$ serverResponse
+  -- In the end, I return both the dynamic containing the event and the raw
+  -- event signal from the server. Probably the type could be changed slightly here.
+  return (validationResult, serverResponse)
 
 type Endpoint t m = Dynamic t (Either Text User)
                  -> Event t ()
                  -> m (Event t (ReqResult (Either (UserShaped (Const (Maybe Text))) User)))
-
 
 -- We have to transform a:
 -- eResult :: Event t (UserShaped (Const (Maybe Text)))
