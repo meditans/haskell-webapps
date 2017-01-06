@@ -31,75 +31,29 @@ import Generics.SOP ((:.:)(..), type (-.->)(..), hzipWith, Code, unComp)
 import MockAPI
 
 main :: IO ()
-main = do
-  -- putStrLn "Server listening on port 8081"
-  -- JSWarp.run 8081 $ mainWidget $ void $ textForm mailInputConfig mockValUser
-  JSWarp.run 8081 $ mainWidget $ body
-  -- JSWarp.run 8081 $ mainWidget $ do
-  --   void $ form userWidget clientValidation
+main = JSWarp.run 8081 $ mainWidget $ body
+
+--------------------------------------------------------------------------------
+-- Implementation of the api endpoints
+
+apiClients :: forall t m. (MonadWidget t m) => _
+apiClients = client (Proxy @MockApi) (Proxy @m) (constDyn url)
+  where url :: BaseUrl
+        url = BaseFullUrl Http "localhost" 8081 ""
+
+invokeAPI :: forall t m . (MonadWidget t m) => Endpoint t m
+invokeAPI :<|> _ = apiClients
+
+--------------------------------------------------------------------------------
+-- Body of the form
 
 body :: forall t m. MonadWidget t m => m ()
-body = do
-  -- Instructions to use the server at localhost and to invoke the api
-  -- Note the usage of ScopedTypeVariables to be able to talk about the monad we're referring to
-  let url = BaseFullUrl Http "localhost" 8081 ""
-      (invokeAPI :<|> _ :<|> _) = client (Proxy @MockApi) (Proxy @m) (constDyn url)
-  -- A description of the visual elements
-  void . divClass "login-clean" . el "form" $ do
-    hiddenTitle
-    icon
-    (_, serverResponse) <- formNEW userWidget clientValidation invokeAPI
-    forgotYourUsername
-    el "h3" (dynText =<< feedback serverResponse)
-  return ()
-
-feedback :: MonadWidget t m
-         => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
-         -> m (Dynamic t Text)
-feedback e = holdDyn "" . ffor e $
-  either id
-         (either (const "Please fill correctly the informations above")
-                 (const "Authenticated"))
-
-
--- serverCommError :: MonadWidget t m
---                 => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
---                 -> m (Dynamic t (Maybe Text))
--- serverCommError e = holdDyn Nothing $ either Just (const Nothing) <$> e
-
--- serverAuth :: Reflex t
---            => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
---            -> Event t User
--- serverAuth = snd . fanEither . snd . fanEither
-
--- serverAuth' :: Reflex t
---             => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
---             -> m (Dynamic t (Maybe User))
--- serverAuth' = snd . fanEither . snd . fanEither
-
--- serverFormError :: MonadWidget t m
---                 => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
---                 -> m (UserShaped (Const (Maybe Text)))
--- serverFormError e = holdDyn Nothing $ either Just (const Nothing) <$> e
-
--- displayMaybe :: MonadWidget t m => Dynamic t (Maybe a) -> (a -> m ()) -> m ()
--- displayMaybe d f = void . dyn $ maybe (pure ()) f <$> d
-
--- A more comprehensive alternative to a form
-formNEW :: MonadWidget t m
-            => UserShaped (FormletSimple t m)
-            -> UserShaped (Validation (Either Text))
-            -> Endpoint t m
-            -> m ( Dynamic t (Either (UserShaped (Const (Maybe Text))) User)
-                 , Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User)) )
-formNEW shapedWidget clientVal endpoint = do
-  rec user <- form shapedWidget clientVal formErrorFromServer
-      send <- buttonElement send responseEvent
-      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
-                         in (fmap . fmap) parseReqResult (endpoint query send)
-      let formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
-          responseEvent = () <$ serverResponse
-  return (user, serverResponse)
+body = void . divClass "login-clean" . el "form" $ do
+  hiddenTitle
+  icon
+  (_, serverResponse) <- formNEW userWidget clientValidation invokeAPI
+  forgotYourUsername
+  el "h3" (dynText =<< feedback serverResponse)
 
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
@@ -135,13 +89,21 @@ buttonElement disable enable = divClass "form-group" $ do
 
 forgotYourUsername :: DomBuilder t m => m ()
 forgotYourUsername = elAttr "a"
-  ("href" =: "#" <> "class" =: "forgotYourUsername")
+  ("href" =: "#" <> "class" =: "forgot")
   (text "Forgot your email or password?")
 
 userWidget :: (MonadWidget t m) => UserShaped (FormletSimple t m)
 userWidget = UserShaped
   (FormletSimple $ userWidgetInternal mailInputConfig)
   (FormletSimple $ userWidgetInternal passInputConfig)
+
+feedback :: MonadWidget t m
+         => Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User))
+         -> m (Dynamic t Text)
+feedback e = holdDyn "" . ffor e $
+  either id
+         (either (const "Please fill correctly the informations above")
+                 (const "Authenticated"))
 
 -- Forms for the shaped approach: This should be supplied by the user, as it's a
 -- rendering of the particular markup the user wants for the form.
@@ -156,7 +118,6 @@ userWidgetInternal conf err = do
   el "error" $ dynText (maybe "" id <$> displayedErr)
   return (value textBox)
 
-
 --------------------------------------------------------------------------------
 -- Things to be moved out of here
 --------------------------------------------------------------------------------
@@ -170,6 +131,22 @@ parseReqResult (ResponseFailure t _) = Left t
 parseReqResult (RequestFailure s)    = Left s
 
 ---------------------------------------------------------------------------------
+
+-- A more comprehensive alternative to a form
+formNEW :: MonadWidget t m
+            => UserShaped (FormletSimple t m)
+            -> UserShaped (Validation (Either Text))
+            -> Endpoint t m
+            -> m ( Dynamic t (Either (UserShaped (Const (Maybe Text))) User)
+                 , Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User)) )
+formNEW shapedWidget clientVal endpoint = do
+  rec user <- form shapedWidget clientVal formErrorFromServer
+      send <- buttonElement send responseEvent
+      serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> user
+                         in (fmap . fmap) parseReqResult (endpoint query send)
+      let formErrorFromServer = fst . fanEither . snd . fanEither $ serverResponse
+          responseEvent = () <$ serverResponse
+  return (user, serverResponse)
 
 -- This function is completely generic, should be moved in
 -- Shaped.Validation.Reflex, or something
@@ -189,18 +166,6 @@ type Endpoint t m = Dynamic t (Either Text User)
                  -> Event t ()
                  -> m (Event t (ReqResult (Either (UserShaped (Const (Maybe Text))) User)))
 
-
-formAllIncluded :: MonadWidget t m
-     => UserShaped (FormletSimple t m)            -- ^ a description of the widgets
-     -> UserShaped (Validation (Either Text))     -- ^ the clientside validation
-     -> Event t (UserShaped (Const (Maybe Text))) -- ^ Error from the server, to eliminate
-     -> m (Dynamic t (Either (UserShaped (Const (Maybe Text))) User))
-formAllIncluded shapedWidget shapedValidation errServer = mdo
-  tentative <- createInterface (splitShaped errorEvent) shapedWidget
-  let validationResult = transfGen . flip validateRecord shapedValidation <$> tentative
-      errorEvent = leftmost [ updated $ either id (const nullError) <$> validationResult
-                            , errServer ]
-  return validationResult
 
 -- We have to transform a:
 -- eResult :: Event t (UserShaped (Const (Maybe Text)))
