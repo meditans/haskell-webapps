@@ -1,38 +1,37 @@
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE ExplicitForAll, NoImplicitPrelude, NoMonomorphismRestriction #-}
-{-# LANGUAGE OverloadedStrings, RecursiveDo, ScopedTypeVariables          #-}
-{-# LANGUAGE TypeApplications, DataKinds                                  #-}
-{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE DataKinds, ExplicitForAll, ExplicitNamespaces, GADTs  #-}
+{-# LANGUAGE NoImplicitPrelude, NoMonomorphismRestriction          #-}
+{-# LANGUAGE OverloadedStrings, PartialTypeSignatures, RecursiveDo #-}
+{-# LANGUAGE ScopedTypeVariables, TypeApplications, TypeFamilies   #-}
+{-# LANGUAGE TypeOperators                                         #-}
+
+{-# OPTIONS_GHC -fno-warn-partial-type-signatures #-}
 
 module Main where
 
-import Servant.API
 import ClassyPrelude
+
 import Reflex
 import Reflex.Dom
+import Servant.API
 import Servant.Reflex
-import Lens.Micro ((^.), to)
-import qualified Language.Javascript.JSaddle.Warp as JSWarp (run)
-
-import Data.Proxy
-import Data.Functor.Misc
-import Data.Functor.Const
 
 import Shaped
 import Shaped.Reflex
-import qualified Generics.SOP as SOP
-import Generics.SOP ((:.:)(..), type (-.->)(..), hzipWith, Code, unComp)
+
+import Data.Functor.Const
+import Data.Functor.Misc
+import Data.Proxy
+import Lens.Micro ((^.), to)
+
+import qualified Language.Javascript.JSaddle.Warp as JSWarp (run)
 
 import MockAPI
 
 main :: IO ()
-main = JSWarp.run 8081 $ mainWidget $ body
+main = JSWarp.run 8081 $ mainWidget body
 
 --------------------------------------------------------------------------------
--- Implementation of the api endpoints
+-- Implementation of the api endpoints, using servant-reflex
 
 apiClients :: forall t m. (MonadWidget t m) => _
 apiClients = client (Proxy @MockApi) (Proxy @m) (constDyn url)
@@ -56,8 +55,10 @@ body = void . divClass "login-clean" . el "form" $ do
 --------------------------------------------------------------------------------
 -- Implementation of the visual elements:
 
-hiddenTitle, icon :: DomBuilder t m => m ()
+hiddenTitle :: DomBuilder t m => m ()
 hiddenTitle = elClass "h2" "sr-only" (text "Login Form")
+
+icon :: DomBuilder t m => m ()
 icon = divClass "illustration" (elClass "i" "icon ion-ios-navigate" $ pure ())
 
 mailInputConfig :: Reflex t => TextInputConfig t
@@ -75,13 +76,17 @@ passInputConfig =
 buttonConfig :: ClassyPrelude.Map AttributeName Text
 buttonConfig = "class" =: "btn btn-primary btn-block" <> "type" =: "button"
 
+-- The Shaped widget for inputing the data. As the field are very similar, I use
+-- the convenience function userWidgetInternal to abstract the behavior.
 userWidget :: (MonadWidget t m) => UserShaped (Formlet t m)
 userWidget = UserShaped
   (Formlet $ userWidgetInternal mailInputConfig)
   (Formlet $ userWidgetInternal passInputConfig)
 
--- Forms for the shaped approach: This should be supplied by the user, as it's a
--- rendering of the particular markup the user wants for the form.
+-- Given some configuration, this is a widget that updates the error for the
+-- first time on blur (to not annoy the user with validation when it has not
+-- finished to type). After the first blur, the error is represented immediately
+-- as the field changes.
 userWidgetInternal :: MonadWidget t m
                    => TextInputConfig t      -- ^ Special tags for input fields
                    -> Event t ()             -- ^ Event that forces the display of errors
