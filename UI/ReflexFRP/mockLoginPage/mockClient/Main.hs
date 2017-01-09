@@ -51,7 +51,7 @@ body :: forall t m. MonadWidget t m => m ()
 body = void . divClass "login-clean" . el "form" $ do
   hiddenTitle
   icon
-  (_, serverResponse) <- form userWidget clientValidation authEndpoint
+  (_, serverResponse) <- form userWidget clientValidation "Log In" buttonConfig authEndpoint
   forgotYourUsername
   el "div" $ el "label" (dynText =<< feedback serverResponse)
 
@@ -74,18 +74,33 @@ passInputConfig =
         ("class" =: "form-control" <> "name" =: "password" <> "placeholder" =: "Password")
       & textInputConfig_inputType .~ "password"
 
-buttonElement :: DomBuilder t m => Event t () -> Event t () -> m (Event t ())
-buttonElement disable enable = divClass "form-group" $ do
-  (e, _) <- element "button" conf (text "Log in")
+buttonConfig :: ClassyPrelude.Map AttributeName Text
+buttonConfig = "class" =: "btn btn-primary btn-block" <> "type" =: "button"
+
+formButton :: DomBuilder t m => Text -> ClassyPrelude.Map AttributeName Text -> Event t () -> Event t () -> m (Event t ())
+formButton buttonTitle initialAttr disable enable = divClass "form-group" $ do
+  (e, _) <- element "button" conf (text buttonTitle)
   return (domEvent Click e)
   where
     conf = def & elementConfig_initialAttributes .~ initialAttr
                & elementConfig_modifyAttributes  .~ mergeWith (\_ b -> b)
                    [ const disableAttr <$> disable
                    , const enableAttr <$> enable ]
-    initialAttr = "class" =: "btn btn-primary btn-block" <> "type" =: "button"
     disableAttr = fmap Just initialAttr  <> "disabled" =: Just "true"
     enableAttr  = fmap Just initialAttr  <> "disabled" =: Nothing
+
+-- buttonElement :: DomBuilder t m => Event t () -> Event t () -> m (Event t ())
+-- buttonElement disable enable = divClass "form-group" $ do
+--   (e, _) <- element "button" conf (text "Log in")
+--   return (domEvent Click e)
+--   where
+--     conf = def & elementConfig_initialAttributes .~ initialAttr
+--                & elementConfig_modifyAttributes  .~ mergeWith (\_ b -> b)
+--                    [ const disableAttr <$> disable
+--                    , const enableAttr <$> enable ]
+--     initialAttr = "class" =: "btn btn-primary btn-block" <> "type" =: "button"
+--     disableAttr = fmap Just initialAttr  <> "disabled" =: Just "true"
+--     enableAttr  = fmap Just initialAttr  <> "disabled" =: Nothing
 
 forgotYourUsername :: DomBuilder t m => m ()
 forgotYourUsername = elAttr "a"
@@ -141,15 +156,16 @@ parseReqResult (RequestFailure s)    = Left s
 form :: MonadWidget t m
             => UserShaped (FormletSimple t m)
             -> UserShaped (Validation (Either Text))
+            -> Text -> ClassyPrelude.Map AttributeName Text
             -> Endpoint t m
             -> m ( Dynamic t (Either (UserShaped (Const (Maybe Text))) User)
                  , Event t (Either Text (Either (UserShaped (Const (Maybe Text))) User)) )
-form shapedWidget clientVal endpoint = mdo
+form shapedWidget clientVal buttonTitle btnConfig endpoint = mdo
   postBuild <- getPostBuild
   -- Here I read a tentative user from the created interface
   rawUser <- createInterface (splitShaped errorEvent) send shapedWidget
   -- Here I define the button. This could probably be mixed with the button code
-  send <- buttonElement send (() <$ serverResponse)
+  send <- (formButton buttonTitle btnConfig) send (() <$ serverResponse)
   -- This part does the server request and parses back the response without
   -- depending on the types in servant-reflex
   serverResponse <- let query = either (const $ Left "Please fill correctly the fields above") Right <$> validationResult
