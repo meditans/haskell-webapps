@@ -18,10 +18,10 @@ import Generics.SOP
 import Data.Functor.Const
 
 server :: Server MockApi
-server = authenticate'' :<|> serveAssets :<|> serveJS
+server = combinedValidations :<|> serveAssets :<|> serveJS
   where
-    serveAssets = serveDirectory "../mockClient/assets"
-    serveJS = serveDirectory "../mockClient/js/"
+    serveAssets = serveDirectory "./mockClient/assets"
+    serveJS = serveDirectory "./mockClient/js/"
 
 authenticate :: (Monad m, MonadIO m) => User -> m Text
 authenticate u
@@ -36,8 +36,8 @@ authenticate u
     correctInfo = M.lookup (userMail u) users == Just (userPassword u)
     userPresent = userMail u `elem` M.keys users
 
-authenticate' :: (Monad m, MonadIO m) => User -> m (Either (UserShaped (Const (Maybe Text))) User)
-authenticate' u
+serverSideValidation :: (Monad m, MonadIO m) => User -> m (Either (UserShaped (Const (Maybe Text))) User)
+serverSideValidation u
   | correctInfo = do
       liftIO (threadDelay 1000000)
       return (Right u)
@@ -55,19 +55,12 @@ authenticate' u
     correctInfo = M.lookup (userMail u) users == Just (userPassword u)
     userPresent = userMail u `elem` M.keys users
 
-authenticate'' :: (Monad m, MonadIO m) => User -> m (Either (UserShaped (Const (Maybe Text))) User)
-authenticate'' u = case transfGen $ validateRecord u clientValidation of
+combinedValidations :: (Monad m, MonadIO m) => User -> m (Either (UserShaped (Const (Maybe Text))) User)
+combinedValidations u = case transfGen $ validateRecord u clientValidation of
   Left  a -> return $ Left a
-  Right b -> authenticate' b
+  Right b -> serverSideValidation b
 
 main :: IO ()
 main = run 8081 (gzip gzipSettings $ serve (Proxy @MockApi) server)
   where
     gzipSettings = def { gzipFiles = GzipCompress }
-
----------------------- Validations
-
--- serverOnlyValidation :: UserShaped (Validation (Either Text))
--- serverOnlyValidation = UserShaped
---   (Validation . Comp $ \m -> if m `notElem` M.keys userDatabase then Right m else Left "Mail not present in the database")
---   (Validation . Comp $ \p -> if p /= "" then Right p else Left "Blank password")

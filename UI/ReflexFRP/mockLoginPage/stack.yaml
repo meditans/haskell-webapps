@@ -1,9 +1,9 @@
 resolver: lts-7.13
 
 packages:
-- location: '.'
-- location: ../mockAPI
-  extra-dep: true
+- location: ./mockAPI
+- location: ./mockServer
+- location: ./mockClient
 - location:
     git: https://github.com/reflex-frp/reflex
     commit: 91299fce0bb2caddfba35af6608df57dd31e3690
