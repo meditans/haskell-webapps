@@ -35,7 +35,7 @@ packages:
   - ghcjs-dom-jsffi
 - location:
     git: https://github.com/meditans/shaped 
-    commit: 792e6b8adec1da3cbec982d026af3e5e39b25e40
+    commit: 05928808db63a78de132cebb2a5d5910d622f0f7
   extra-dep: true
 
 extra-deps:
