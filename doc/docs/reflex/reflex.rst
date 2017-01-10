@@ -14,3 +14,4 @@ Contents:
    outline
    getting-started
    a-server-client-architecture
+   multi-page-routing
