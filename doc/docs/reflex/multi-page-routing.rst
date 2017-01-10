@@ -74,6 +74,71 @@ TODO: Talk about the working of the library, again choosing a simple example fro
 
 Global app structuring
 ----------------------
+TODO: Substitute the snippets with the correct references in the code once it stabilizes
+
+Let's talk about page structuring now, starting from the entry point for the client app:
+
+.. code-block:: haskell
+
+  run :: forall t m .MonadWidget t m => m ()
+  run = mdo
+    initialUrl <- note "Error in first url parsing" . BS.stripPrefix "/" . view U.pathL <$> getURI
+    let initialApp = WR.fromPathInfo =<< initialUrl
+    loop dispatch (either (const Overview) id initialApp)
+
+TODO: Requisites for the routing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Here are the requisites that a good routing solution should have:
+
+TODO: Description of our usage of servant-router (for the serverside)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+TODO: Description of the loop function and widgethold
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The recursive function that permits the routing is:
+
+.. code-block:: haskell
+
+  loop :: forall t m . MonadWidget t m => (MyType -> m (Event t MyType)) -> MyType -> m ()
+  loop f a = mdo
+    rout <- pff e
+    e <- switchPromptlyDyn <$> widgetHold (f a) (dispatch <$> updated rout)
+    return ()
+
+as 
+.. code-block:: haskell
+
+  rout :: Dynamic t AppState
+
+and
+.. code-block:: haskell
+
+
+TODO: The dispatch mechanism
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+As we saw, the pages of our app are interpreted in a datatype (in our case
+
+.. code-block:: haskell
+
+  data AppState = BootApp
+                | Overview
+                | Edit RoleName
+                deriving (Eq, Show, Read, Generic)
+
+  instance PathInfo AppState
+
+We see that we add a instance for `PathInfo`, which is required by the function
+webRoute (the implementation is a detail):
+
+.. code-block:: haskell
+
+  webRoute
+    :: (MonadWidget t m, PathInfo a)
+    => Text     -- ^ The part of the URL not related to SPA routing, starting with '/'
+    -> Event t a
+    -> m (Dynamic t (Either Text a))
+
 
 Routing with servant-router and reflex-contrib-router
 -----------------------------------------------------
